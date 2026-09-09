@@ -108,6 +108,7 @@ spindle.onFrontendMessage(async (payload: any, userId) => {
       return
     }
 
+    // FIX: Pass userId to all operator-scoped API calls
     const activePersona = await spindle.personas.getActive(userId)
     const activeChat = await spindle.chats.getActive(userId)
     
@@ -126,7 +127,8 @@ spindle.onFrontendMessage(async (payload: any, userId) => {
 
     let historyText = ""
     if (activeChat) {
-      const messages = await spindle.chat.getMessages(activeChat.id)
+      // FIX: Pass userId to getMessages
+      const messages = await spindle.chat.getMessages(activeChat.id, userId)
       const recent = messages.slice(-5)
       historyText = recent.map(m => `${m.role === 'user' ? 'User' : readerCharacter?.name || 'Assistant'}: ${m.content}`).join('\n')
     }
@@ -160,14 +162,16 @@ spindle.onFrontendMessage(async (payload: any, userId) => {
     spindle.sendToFrontend({ type: 'stream_start', cardIndex }, userId)
 
     try {
+      // FIX: Pass userId in the rawStream options object
       const stream = spindle.generate.rawStream({
         connection_id: settings.connectionId,
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userPrompt }
         ],
-        parameters: { temperature: 0.7 }
-      })
+        parameters: { temperature: 0.7 },
+        userId: userId
+      } as any)
 
       let fullText = ''
       for await (const chunk of stream) {
@@ -185,7 +189,7 @@ spindle.onFrontendMessage(async (payload: any, userId) => {
       spindle.toast.error(`Tarot generation failed: ${err.message}`)
       spindle.sendToFrontend({ type: 'stream_end', cardIndex, fullText: `Error: ${err.message}` }, userId)
     }
-        }
+      }
 })
 
 spindle.log.info('Tarot Reader backend loaded.')
