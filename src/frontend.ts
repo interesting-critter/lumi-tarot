@@ -205,6 +205,14 @@ export function setup(ctx: SpindleFrontendContext) {
       isStreaming = false
       flippedCount++
       
+      // Ensure text is set even if no tokens were received (e.g., error or empty response)
+      const textDiv = cardsArea.querySelector(`.tarot-card-text[data-index="${payload.cardIndex}"]`) as HTMLElement
+      if (textDiv && payload.fullText) {
+        if (!textDiv.textContent.trim()) {
+          textDiv.textContent = payload.fullText
+        }
+      }
+      
       // Update flip controls
       renderFlipControls()
       
