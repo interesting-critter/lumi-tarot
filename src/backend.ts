@@ -86,6 +86,15 @@ spindle.onFrontendMessage(async (payload: any, userId) => {
       settings
     }, userId)
   }
+
+    // Add this inside spindle.onFrontendMessage, after the 'init' block
+  if (payload.type === 'save_settings') {
+    await spindle.storage.setJson('settings.json', {
+      systemPrompt: payload.systemPrompt,
+      connectionId: payload.connectionId
+    })
+    spindle.toast.success('Tarot settings saved!')
+   }
 })
 
 spindle.log.info('lumi-tarot backend loaded.')
