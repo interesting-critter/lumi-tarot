@@ -14,14 +14,50 @@ export function setup(ctx: SpindleFrontendContext) {
     .tarot-btn:disabled { background: var(--lumiverse-fill); color: var(--lumiverse-text-dim); cursor: not-allowed; }
     
     .tarot-input { width: 100%; box-sizing: border-box; padding: 8px; background: var(--lumiverse-fill); border: 1px solid var(--lumiverse-border); border-radius: var(--lumiverse-radius); color: var(--lumiverse-text); font-family: inherit; font-size: 14px; }
-    .tarot-row { display: flex; gap: 8px; }
-    .tarot-row > * { flex: 1; }
     
-    .tarot-spread-grid { display: grid; gap: 12px; margin-top: 12px; width: 100%; }
-    .tarot-card-slot { display: flex; flex-direction: column; align-items: center; gap: 4px; }
-    .tarot-card-img { width: 80px; height: 140px; border-radius: 6px; object-fit: cover; box-shadow: 0 4px 8px rgba(0,0,0,0.3); cursor: pointer; transition: transform 0.2s; }
+    /* --- Spread Layouts --- */
+    .tarot-spread-grid { display: grid; gap: 12px; margin-top: 16px; width: 100%; padding: 12px 0; }
+    .tarot-card-slot { display: flex; flex-direction: column; align-items: center; gap: 4px; position: relative; }
+    .tarot-card-img { width: 100%; max-width: 65px; aspect-ratio: 2/3.5; border-radius: 6px; object-fit: cover; box-shadow: 0 4px 8px rgba(0,0,0,0.3); cursor: pointer; transition: transform 0.2s; }
     .tarot-card-img:hover { transform: scale(1.05); }
-    .tarot-card-pos { font-size: 11px; color: var(--lumiverse-text-muted); font-weight: 600; text-transform: uppercase; }
+    .tarot-card-pos { font-size: 10px; color: var(--lumiverse-text-muted); font-weight: 600; text-transform: uppercase; text-align: center; }
+    
+    /* 1 Card */
+    .tarot-spread-1 { grid-template-columns: 1fr; justify-items: center; }
+    
+    /* 3 Card */
+    .tarot-spread-3 { grid-template-columns: repeat(3, 1fr); justify-items: center; }
+    
+    /* 5 Card Cross */
+    .tarot-spread-5 { grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(3, auto); justify-items: center; align-items: center; }
+    .s5-0 { grid-area: 2 / 2; } /* Center */
+    .s5-1 { grid-area: 2 / 1; } /* Left */
+    .s5-2 { grid-area: 2 / 3; } /* Right */
+    .s5-3 { grid-area: 1 / 2; } /* Top */
+    .s5-4 { grid-area: 3 / 2; } /* Bottom */
+    
+    /* 7 Card Horseshoe */
+    .tarot-spread-7 { grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(4, auto); justify-items: center; }
+    .s7-0 { grid-area: 4 / 1; } /* Bottom Left */
+    .s7-1 { grid-area: 3 / 1; }
+    .s7-2 { grid-area: 2 / 1; }
+    .s7-3 { grid-area: 1 / 2; } /* Top Center */
+    .s7-4 { grid-area: 2 / 3; }
+    .s7-5 { grid-area: 3 / 3; }
+    .s7-6 { grid-area: 4 / 3; } /* Bottom Right */
+    
+    /* 10 Card Celtic Cross */
+    .tarot-spread-10 { grid-template-columns: repeat(4, 1fr); grid-template-rows: repeat(5, auto); justify-items: center; align-items: center; }
+    .s10-0 { grid-area: 3 / 2; z-index: 1; } /* Center (Cover) */
+    .s10-1 { grid-area: 3 / 2; transform: rotate(90deg); z-index: 2; } /* Crossing */
+    .s10-2 { grid-area: 4 / 2; } /* Foundation */
+    .s10-3 { grid-area: 3 / 1; } /* Recent Past */
+    .s10-4 { grid-area: 2 / 2; } /* Possible Future */
+    .s10-5 { grid-area: 3 / 3; } /* Near Future */
+    .s10-6 { grid-area: 5 / 4; } /* Self (Bottom of Staff) */
+    .s10-7 { grid-area: 4 / 4; } /* Environment */
+    .s10-8 { grid-area: 3 / 4; } /* Hopes/Fears */
+    .s10-9 { grid-area: 2 / 4; } /* Outcome (Top of Staff) */
   `)
 
   const tab = ctx.ui.registerDrawerTab({
@@ -151,24 +187,40 @@ export function setup(ctx: SpindleFrontendContext) {
       variant = 'mbs'
     }
     
-    cardsArea.innerHTML = '<div style="color: var(--lumiverse-text-muted); font-size: 13px;">Drawing cards...</div>'
+    cardsArea.innerHTML = '<div style="color: var(--lumiverse-text-muted); font-size: 13px; margin-top: 16px; text-align: center;">Drawing cards...</div>'
     ctx.sendToBackend({ type: 'draw_cards', spreadType, variant })
   })
 
   function renderCards() {
     if (!currentDraw) return
     const { cards, positions } = currentDraw
+    const count = cards.length
     
-    // Determine grid columns based on card count
-    let cols = cards.length
-    if (cards.length === 10) cols = 5 // Celtic cross wraps
-    if (cards.length === 7) cols = 4  // Horseshoe wraps
-    if (cards.length === 5) cols = 3  // Cross wraps
+    let gridClass = ''
+    let cardClasses: string[] = []
+    
+    // Determine layout classes based on count
+    if (count === 1) {
+      gridClass = 'tarot-spread-1'
+      cardClasses = ['s1-0']
+    } else if (count === 3) {
+      gridClass = 'tarot-spread-3'
+      cardClasses = ['s3-0', 's3-1', 's3-2']
+    } else if (count === 5) {
+      gridClass = 'tarot-spread-5'
+      cardClasses = ['s5-0', 's5-1', 's5-2', 's5-3', 's5-4']
+    } else if (count === 7) {
+      gridClass = 'tarot-spread-7'
+      cardClasses = ['s7-0', 's7-1', 's7-2', 's7-3', 's7-4', 's7-5', 's7-6']
+    } else if (count === 10) {
+      gridClass = 'tarot-spread-10'
+      cardClasses = ['s10-0', 's10-1', 's10-2', 's10-3', 's10-4', 's10-5', 's10-6', 's10-7', 's10-8', 's10-9']
+    }
     
     cardsArea.innerHTML = `
-      <div class="tarot-spread-grid" style="grid-template-columns: repeat(${cols}, 1fr);">
+      <div class="tarot-spread-grid ${gridClass}">
         ${cards.map((card, i) => `
-          <div class="tarot-card-slot">
+          <div class="tarot-card-slot ${cardClasses[i] || ''}">
             <img src="${imageUrls[78]}" class="tarot-card-img" data-index="${i}" />
             <div class="tarot-card-pos">${positions[i]}</div>
           </div>
@@ -193,4 +245,4 @@ export function setup(ctx: SpindleFrontendContext) {
     if (connHandle) connHandle.destroy()
     tab.destroy()
   }
-}
+    }
