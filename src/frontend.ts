@@ -17,7 +17,7 @@ export function setup(ctx: SpindleFrontendContext) {
     
     .tarot-spread-grid { display: grid; gap: 12px; margin-top: 16px; width: 100%; padding: 12px 0; }
     .tarot-card-slot { display: flex; flex-direction: column; align-items: center; gap: 4px; position: relative; }
-    .tarot-card-img { width: 100%; max-width: 65px; aspect-ratio: 2/3.5; border-radius: 6px; object-fit: cover; box-shadow: 0 4px 8px rgba(0,0,0,0.3); cursor: pointer; transition: transform 0.2s; }
+    .tarot-card-img { width: 100%; max-width: 25%; aspect-ratio: 2/3.5; border-radius: 6px; object-fit: cover; box-shadow: 0 4px 8px rgba(0,0,0,0.3); cursor: pointer; transition: transform 0.2s; }
     .tarot-card-img:hover { transform: scale(1.05); }
     .tarot-card-img.inverted { transform: rotate(180deg); }
     .tarot-card-img.inverted:hover { transform: rotate(180deg) scale(1.05); }
