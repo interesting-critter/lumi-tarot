@@ -23,8 +23,7 @@ export function setup(ctx: SpindleFrontendContext) {
     .tarot-card-img.inverted:hover { transform: rotate(180deg) scale(1.05); }
     .tarot-card-pos { font-size: 10px; color: var(--lumiverse-text-muted); font-weight: 600; text-transform: uppercase; text-align: center; }
     
-    .tarot-card-text { font-size: 11px; color: var(--lumiverse-text-muted); margin-top: 8px; padding: 8px; background: var(--lumiverse-fill); border-radius: 4px; width: 100%; box-sizing: border-box; text-align: left; min-height: 40px; border: 1px solid var(--lumiverse-border); }
-    
+        .tarot-card-text { font-size: 11px; color: var(--lumiverse-text); margin-top: 8px; padding: 8px; background: var(--lumiverse-fill); border-radius: 4px; width: 100%; box-sizing: border-box; text-align: left; min-height: 40px; border: 1px solid var(--lumiverse-border); white-space: pre-wrap; }    
     .tarot-flip-controls { display: flex; gap: 8px; align-items: center; margin-top: 12px; }
     .tarot-checkbox { display: flex; gap: 4px; align-items: center; font-size: 12px; color: var(--lumiverse-text-muted); cursor: pointer; }
     
