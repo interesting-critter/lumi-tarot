@@ -30,11 +30,11 @@ export function setup(ctx: SpindleFrontendContext) {
     
     /* 5 Card Cross */
     .tarot-spread-5 { grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(3, auto); justify-items: center; align-items: center; }
-    .s5-0 { grid-area: 2 / 2; } /* Center */
-    .s5-1 { grid-area: 2 / 1; } /* Left */
-    .s5-2 { grid-area: 2 / 3; } /* Right */
-    .s5-3 { grid-area: 1 / 2; } /* Top */
-    .s5-4 { grid-area: 3 / 2; } /* Bottom */
+    .s5-0 { grid-area: 2 / 1; } /* Past (Left) */
+    .s5-1 { grid-area: 2 / 2; } /* Present (Center) */
+    .s5-2 { grid-area: 2 / 3; } /* Future (Right) */
+    .s5-3 { grid-area: 1 / 2; } /* Core Reason (Top) */
+    .s5-4 { grid-area: 3 / 2; } /* Potential (Bottom) */
     
     /* 7 Card Horseshoe */
     .tarot-spread-7 { grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(4, auto); justify-items: center; }
