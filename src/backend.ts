@@ -92,6 +92,46 @@ spindle.onFrontendMessage(async (payload: any, userId) => {
       connectionId: payload.connectionId
     })
     spindle.toast.success('Tarot settings saved!')
+
+  }
+    if (payload.type === 'draw_cards') {
+    const { spreadType, variant } = payload
+    let count = 1
+    let positions: string[] = []
+    
+    if (spreadType === '1') {
+      count = 1
+      positions = ['The Card']
+    } else if (spreadType === '3') {
+      count = 3
+      if (variant === 'ppf') positions = ['Past', 'Present', 'Future']
+      else positions = ['Mind', 'Body', 'Soul']
+    } else if (spreadType === '5') {
+      count = 5
+      positions = ['Past', 'Present', 'Future', 'Hidden', 'Outcome']
+    } else if (spreadType === '7') {
+      count = 7
+      positions = ['Past', 'Present', 'Future', 'Hidden', 'External', 'Internal', 'Outcome']
+    } else if (spreadType === '10') {
+      count = 10
+      positions = ['1. Cover', '2. Crossing', '3. Foundation', '4. Recent Past', '5. Possible Future', '6. Near Future', '7. Self', '8. Environment', '9. Hopes/Fears', '10. Outcome']
+    }
+    
+    // Draw cards without replacement
+    const available = Array.from({length: 78}, (_, i) => i)
+    const drawnCards = []
+    for (let i = 0; i < count; i++) {
+      const idx = Math.floor(Math.random() * available.length)
+      const cardId = available.splice(idx, 1)[0]
+      const inverted = Math.random() < 0.5
+      drawnCards.push({ id: cardId, inverted })
+    }
+    
+    spindle.sendToFrontend({
+      type: 'draw_result',
+      cards: drawnCards,
+      positions
+    }, userId)
   }
 })
 
