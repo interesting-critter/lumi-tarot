@@ -108,7 +108,14 @@ spindle.onFrontendMessage(async (payload: any, userId) => {
       return
     }
 
-    // FIX: Pass userId to all operator-scoped API calls
+    // FIX: Fetch the connection profile to get the model name
+    const connection = await spindle.connections.get(settings.connectionId, userId)
+    if (!connection || !connection.model) {
+      spindle.toast.error('Selected connection has no model configured.')
+      spindle.sendToFrontend({ type: 'stream_end', cardIndex, fullText: 'Error: Connection has no model.' }, userId)
+      return
+    }
+
     const activePersona = await spindle.personas.getActive(userId)
     const activeChat = await spindle.chats.getActive(userId)
     
@@ -127,7 +134,6 @@ spindle.onFrontendMessage(async (payload: any, userId) => {
 
     let historyText = ""
     if (activeChat) {
-      // FIX: Pass userId to getMessages
       const messages = await spindle.chat.getMessages(activeChat.id, userId)
       const recent = messages.slice(-5)
       historyText = recent.map(m => `${m.role === 'user' ? 'User' : readerCharacter?.name || 'Assistant'}: ${m.content}`).join('\n')
@@ -158,13 +164,14 @@ spindle.onFrontendMessage(async (payload: any, userId) => {
     userPrompt += `Traditional Meaning: ${meaning}\n\n`
     userPrompt += `Interpret this card for the user in 2-3 sentences.`
 
-    spindle.log.info(`Tarot Reader: Flipping card ${cardIndex} (${cardData.name})...`)
+    spindle.log.info(`Tarot Reader: Flipping card ${cardIndex} (${cardData.name}) using model ${connection.model}...`)
     spindle.sendToFrontend({ type: 'stream_start', cardIndex }, userId)
 
     try {
-      // FIX: Pass userId in the rawStream options object
       const stream = spindle.generate.rawStream({
         connection_id: settings.connectionId,
+        // FIX: Explicitly pass the model from the connection profile
+        model: connection.model,
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userPrompt }
@@ -189,7 +196,7 @@ spindle.onFrontendMessage(async (payload: any, userId) => {
       spindle.toast.error(`Tarot generation failed: ${err.message}`)
       spindle.sendToFrontend({ type: 'stream_end', cardIndex, fullText: `Error: ${err.message}` }, userId)
     }
-      }
+  }
 })
 
 spindle.log.info('Tarot Reader backend loaded.')
