@@ -1,10 +1,7 @@
 declare const spindle: import('lumiverse-spindle-types').SpindleAPI
 import { TAROT_DECK } from './tarot-data'
 
-// In-memory cache for asset URLs
 let cachedImageUrls: Record<number, string> = {}
-
-// Store active readings per user
 let currentReadings: Map<string, any> = new Map()
 
 async function ensureAssetsSeeded(userId: string) {
@@ -16,16 +13,14 @@ async function ensureAssetsSeeded(userId: string) {
     return
   }
 
-  spindle.log.info('Tarot Reader: Seeding 79 tarot images to Lumiverse asset system...')
+  spindle.log.info('Tarot Reader: Seeding 79 tarot images...')
   const uploadItems = []
   for (let i = 0; i <= 78; i++) {
     const filename = `${i.toString().padStart(2, '0')}.jpg`
     try {
       const data = await spindle.storage.readBinary(`assets/${filename}`)
       uploadItems.push({ data, filename, mime_type: 'image/jpeg' })
-    } catch (err) {
-      spindle.log.error(`Failed to read ${filename}.`)
-    }
+    } catch (err) { spindle.log.error(`Failed to read ${filename}.`) }
   }
 
   const results = await spindle.images.uploadMany(uploadItems, { userId })
@@ -70,10 +65,8 @@ spindle.onFrontendMessage(async (payload: any, userId) => {
     let positions: string[] = []
     
     if (spreadType === '1') { count = 1; positions = ['The Card'] }
-    else if (spreadType === '3') {
-      count = 3
-      positions = variant === 'ppf' ? ['Past', 'Present', 'Future'] : ['Mind', 'Body', 'Soul']
-    } else if (spreadType === '5') { count = 5; positions = ['Past', 'Present', 'Future', 'Core Reason', 'Potential'] }
+    else if (spreadType === '3') { count = 3; positions = variant === 'ppf' ? ['Past', 'Present', 'Future'] : ['Mind', 'Body', 'Soul'] }
+    else if (spreadType === '5') { count = 5; positions = ['Past', 'Present', 'Future', 'Core Reason', 'Potential'] }
     else if (spreadType === '7') { count = 7; positions = ['Past', 'Present', 'Hidden Influences', 'Obstacles', 'Potential', 'Advice', 'Potential Outcome'] }
     else if (spreadType === '10') { count = 10; positions = ['Present', 'Challenge', 'Focus', 'Past', 'Strengths', 'Near Future', 'Advice', 'Environment', 'Hopes and Fears', 'Potential Outcome'] }
     
@@ -86,9 +79,8 @@ spindle.onFrontendMessage(async (payload: any, userId) => {
       drawnCards.push({ id: cardId, inverted })
     }
     
-    // Save reading state
-    currentReadings.set(userId, { cards: drawnCards, positions, spreadType, variant, question, readerCharacterId })
-    
+    // Save reading state with empty interpretations array
+    currentReadings.set(userId, { cards: drawnCards, positions, spreadType, variant, question, readerCharacterId, interpretations: [] })
     spindle.sendToFrontend({ type: 'draw_result', cards: drawnCards, positions }, userId)
   }
 
@@ -103,12 +95,11 @@ spindle.onFrontendMessage(async (payload: any, userId) => {
 
     const settings = await spindle.storage.getJson('settings.json', { fallback: { systemPrompt: '', connectionId: '' } })
     if (!settings.connectionId) {
-      spindle.toast.error('No LLM connection selected in settings.')
+      spindle.toast.error('No LLM connection selected.')
       spindle.sendToFrontend({ type: 'stream_end', cardIndex, fullText: 'Error: No connection selected.' }, userId)
       return
     }
 
-    // FIX: Fetch the connection profile to get the model name
     const connection = await spindle.connections.get(settings.connectionId, userId)
     if (!connection || !connection.model) {
       spindle.toast.error('Selected connection has no model configured.')
@@ -122,10 +113,7 @@ spindle.onFrontendMessage(async (payload: any, userId) => {
     let readerCharacter = null
     let activeChatCharacter = null
     
-    if (activeChat?.character_id) {
-      activeChatCharacter = await spindle.characters.get(activeChat.character_id, userId)
-    }
-
+    if (activeChat?.character_id) activeChatCharacter = await spindle.characters.get(activeChat.character_id, userId)
     if (reading.readerCharacterId && reading.readerCharacterId !== activeChat?.character_id) {
       readerCharacter = await spindle.characters.get(reading.readerCharacterId, userId)
     } else {
@@ -164,13 +152,11 @@ spindle.onFrontendMessage(async (payload: any, userId) => {
     userPrompt += `Traditional Meaning: ${meaning}\n\n`
     userPrompt += `Interpret this card for the user in 2-3 sentences.`
 
-    spindle.log.info(`Tarot Reader: Flipping card ${cardIndex} (${cardData.name}) using model ${connection.model}...`)
     spindle.sendToFrontend({ type: 'stream_start', cardIndex }, userId)
 
     try {
       const stream = spindle.generate.rawStream({
         connection_id: settings.connectionId,
-        // FIX: Explicitly pass the model from the connection profile
         model: connection.model,
         messages: [
           { role: 'system', content: systemPrompt },
@@ -189,13 +175,108 @@ spindle.onFrontendMessage(async (payload: any, userId) => {
           fullText = chunk.content || fullText
         }
       }
-      spindle.log.info(`Tarot Reader: Card ${cardIndex} stream complete.`)
+      
+      // Save interpretation for synthesis later
+      reading.interpretations[cardIndex] = fullText
+      currentReadings.set(userId, reading)
+      
       spindle.sendToFrontend({ type: 'stream_end', cardIndex, fullText }, userId)
     } catch (err: any) {
       spindle.log.error(`Tarot Reader: Stream failed - ${err.message}`)
       spindle.toast.error(`Tarot generation failed: ${err.message}`)
       spindle.sendToFrontend({ type: 'stream_end', cardIndex, fullText: `Error: ${err.message}` }, userId)
     }
+  }
+
+  if (payload.type === 'synthesize') {
+    const reading = currentReadings.get(userId)
+    if (!reading) return
+
+    const settings = await spindle.storage.getJson('settings.json', { fallback: { systemPrompt: '', connectionId: '' } })
+    const connection = await spindle.connections.get(settings.connectionId, userId)
+    if (!connection || !connection.model) return
+
+    const activePersona = await spindle.personas.getActive(userId)
+    const activeChat = await spindle.chats.getActive(userId)
+    let readerCharacter = null
+    if (activeChat?.character_id) {
+      readerCharacter = await spindle.characters.get(activeChat.character_id, userId)
+    }
+
+    let systemPrompt = `${settings.systemPrompt}\n\nYou are roleplaying as ${readerCharacter?.name || 'a tarot reader'}.`
+    if (readerCharacter?.description) systemPrompt += `\n${readerCharacter.description}`
+
+    let userPrompt = `User Persona: ${activePersona?.name || 'Unknown'}\n\n`
+    if (reading.question) userPrompt += `User's Question: ${reading.question}\n\n`
+    
+    userPrompt += `Here are the cards drawn and their individual interpretations:\n`
+    reading.cards.forEach((card: any, i: number) => {
+      const cardData = TAROT_DECK.find(c => c.id === card.id)
+      const orientation = card.inverted ? 'Inverted' : 'Upright'
+      userPrompt += `Position: ${reading.positions[i]} | Card: ${cardData?.name} (${orientation})\nInterpretation: ${reading.interpretations[i] || 'N/A'}\n\n`
+    })
+    
+    userPrompt += `Now, provide an overall synthesis of this spread. How do these cards interact? What is the final message for the user?`
+
+    spindle.sendToFrontend({ type: 'stream_start', cardIndex: 'synthesis' }, userId)
+
+    try {
+      const stream = spindle.generate.rawStream({
+        connection_id: settings.connectionId,
+        model: connection.model,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt }
+        ],
+        parameters: { temperature: 0.7 },
+        userId: userId
+      } as any)
+
+      let fullText = ''
+      for await (const chunk of stream) {
+        if (chunk.type === 'token') {
+          fullText += chunk.token
+          spindle.sendToFrontend({ type: 'stream_token', cardIndex: 'synthesis', token: chunk.token }, userId)
+        } else if (chunk.type === 'done') {
+          fullText = chunk.content || fullText
+        }
+      }
+      spindle.sendToFrontend({ type: 'stream_end', cardIndex: 'synthesis', fullText }, userId)
+
+      // Save to history
+      const activeChat = await spindle.chats.getActive(userId)
+      const chatId = activeChat?.id || 'global'
+      const history = await spindle.userStorage.getJson<any[]>(`history/${chatId}.json`, { fallback: [], userId })
+      
+      history.unshift({
+        timestamp: Date.now(),
+        question: reading.question,
+        spreadType: reading.spreadType,
+        variant: reading.variant,
+        cards: reading.cards.map((c: any, i: number) => ({ 
+          id: c.id, 
+          inverted: c.inverted, 
+          name: TAROT_DECK.find(t => t.id === c.id)?.name,
+          interpretation: reading.interpretations[i] 
+        })),
+        synthesis: fullText
+      })
+      
+      // Keep only the last 3 readings
+      history.splice(3)
+      await spindle.userStorage.setJson(`history/${chatId}.json`, history, { userId })
+
+    } catch (err: any) {
+      spindle.log.error(`Synthesis failed: ${err.message}`)
+      spindle.sendToFrontend({ type: 'stream_end', cardIndex: 'synthesis', fullText: `Error: ${err.message}` }, userId)
+    }
+  }
+
+  if (payload.type === 'load_history') {
+    const activeChat = await spindle.chats.getActive(userId)
+    const chatId = activeChat?.id || 'global'
+    const history = await spindle.userStorage.getJson<any[]>(`history/${chatId}.json`, { fallback: [], userId })
+    spindle.sendToFrontend({ type: 'history_data', history }, userId)
   }
 })
 
