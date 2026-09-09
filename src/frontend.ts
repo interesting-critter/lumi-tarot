@@ -25,6 +25,9 @@ export function setup(ctx: SpindleFrontendContext) {
     
     .tarot-card-text { font-size: 11px; color: var(--lumiverse-text); margin-top: 8px; padding: 8px; background: var(--lumiverse-fill); border-radius: 4px; width: 100%; box-sizing: border-box; text-align: left; min-height: 40px; border: 1px solid var(--lumiverse-border); white-space: pre-wrap; }
     
+    .tarot-reread-btn { margin-top: 4px; padding: 4px 8px; font-size: 10px; background: var(--lumiverse-fill); color: var(--lumiverse-text-muted); border: 1px solid var(--lumiverse-border); border-radius: 4px; cursor: pointer; width: 100%; box-sizing: border-box; }
+    .tarot-reread-btn:hover { border-color: var(--lumiverse-accent); color: var(--lumiverse-accent); }
+    
     .tarot-synthesis-box { margin-top: 16px; padding: 12px; background: var(--lumiverse-fill-subtle); border: 1px solid var(--lumiverse-border); border-radius: 8px; }
     .tarot-history-item { padding: 12px; background: var(--lumiverse-fill-subtle); border: 1px solid var(--lumiverse-border); border-radius: 8px; margin-bottom: 12px; }
     .tarot-history-meta { font-size: 11px; color: var(--lumiverse-text-muted); margin-bottom: 8px; }
@@ -79,6 +82,7 @@ export function setup(ctx: SpindleFrontendContext) {
         <div id="tarot-synthesis-area" style="display: none;">
           <div class="tarot-label">Overall Synthesis</div>
           <div id="tarot-synthesis-text" class="tarot-card-text" style="min-height: 60px;"></div>
+          <button class="tarot-btn" id="tarot-synth-retry-btn" style="margin-top: 8px; display: none;">Re-synthesize</button>
         </div>
       </div>
 
@@ -113,6 +117,7 @@ export function setup(ctx: SpindleFrontendContext) {
   const flipControlsArea = tab.root.querySelector('#tarot-flip-controls-area') as HTMLElement
   const synthesisArea = tab.root.querySelector('#tarot-synthesis-area') as HTMLElement
   const synthesisText = tab.root.querySelector('#tarot-synthesis-text') as HTMLElement
+  const synthRetryBtn = tab.root.querySelector('#tarot-synth-retry-btn') as HTMLButtonElement
   const readerSelectSlot = tab.root.querySelector('#tarot-reader-select-slot') as HTMLElement
   
   const sysPromptSlot = tab.root.querySelector('#tarot-sys-prompt-slot') as HTMLElement
@@ -127,9 +132,10 @@ export function setup(ctx: SpindleFrontendContext) {
   let imageUrls: Record<number, string> = {}
   let currentDraw: { cards: any[], positions: string[] } | null = null
   let readerCharacterId: string = ''
-  let flippedCount = 0
+  let readIndices: Set<number> = new Set()
   let isStreaming = false
   let autoAdvance = false
+  let synthesisStarted = false
 
   // --- Navigation Router ---
   navBtns.forEach(btn => {
@@ -141,9 +147,7 @@ export function setup(ctx: SpindleFrontendContext) {
       settingsView.style.display = view === 'settings' ? 'block' : 'none'
       historyView.style.display = view === 'history' ? 'block' : 'none'
       
-      if (view === 'history') {
-        ctx.sendToBackend({ type: 'load_history' })
-      }
+      if (view === 'history') ctx.sendToBackend({ type: 'load_history' })
     })
   })
 
@@ -180,9 +184,11 @@ export function setup(ctx: SpindleFrontendContext) {
     
     if (payload.type === 'draw_result') {
       currentDraw = payload
-      flippedCount = 0
+      readIndices = new Set()
+      synthesisStarted = false
       synthesisArea.style.display = 'none'
       synthesisText.textContent = ''
+      synthRetryBtn.style.display = 'none'
       renderCards()
       renderFlipControls()
     }
@@ -192,6 +198,7 @@ export function setup(ctx: SpindleFrontendContext) {
       if (payload.cardIndex === 'synthesis') {
         synthesisArea.style.display = 'block'
         synthesisText.textContent = ''
+        synthRetryBtn.style.display = 'none'
       } else {
         const slot = cardsArea.querySelector(`.tarot-card-slot[data-index="${payload.cardIndex}"]`)
         if (slot && !slot.querySelector('.tarot-card-text')) {
@@ -223,19 +230,35 @@ export function setup(ctx: SpindleFrontendContext) {
         if (!synthesisText.textContent.trim() && payload.fullText) {
           synthesisText.textContent = payload.fullText
         }
+        synthRetryBtn.style.display = 'block'
         flipControlsArea.innerHTML = '<div style="color: var(--lumiverse-text-muted); font-size: 12px; text-align: center; margin-top: 8px;">Reading complete. Saved to history.</div>'
       } else {
-        flippedCount++
+        const cardIndex = parseInt(payload.cardIndex)
+        readIndices.add(cardIndex)
+        
         const textDiv = cardsArea.querySelector(`.tarot-card-text[data-index="${payload.cardIndex}"]`) as HTMLElement
         if (textDiv && payload.fullText && !textDiv.textContent.trim()) {
           textDiv.textContent = payload.fullText
         }
         
-        // Auto-advance if enabled
-        if (autoAdvance && currentDraw && flippedCount < currentDraw.cards.length) {
-          setTimeout(() => flipCard(flippedCount), 800)
-        } else if (autoAdvance && currentDraw && flippedCount === currentDraw.cards.length) {
-          // Auto-trigger synthesis if auto-advance is on
+        // Inject Re-read button
+        const slot = cardsArea.querySelector(`.tarot-card-slot[data-index="${payload.cardIndex}"]`)
+        if (slot && !slot.querySelector('.tarot-reread-btn')) {
+          const rereadBtn = document.createElement('button')
+          rereadBtn.className = 'tarot-reread-btn'
+          rereadBtn.textContent = 'Re-read Card'
+          rereadBtn.addEventListener('click', () => flipCard(cardIndex, true))
+          slot.appendChild(rereadBtn)
+        }
+        
+        // Auto-advance logic
+        if (autoAdvance && currentDraw && readIndices.size < currentDraw.cards.length) {
+          const nextUnread = currentDraw.cards.findIndex((_, i) => !readIndices.has(i))
+          if (nextUnread !== -1) {
+            setTimeout(() => flipCard(nextUnread), 800)
+          }
+        } else if (autoAdvance && currentDraw && readIndices.size === currentDraw.cards.length && !synthesisStarted) {
+          synthesisStarted = true
           setTimeout(() => synthesizeReading(), 800)
         } else {
           renderFlipControls()
@@ -255,10 +278,10 @@ export function setup(ctx: SpindleFrontendContext) {
             ${r.question ? `<br><em>Q: ${r.question}</em>` : ''}
           </div>
           <div style="display: flex; flex-direction: column; gap: 8px; margin: 12px 0;">
-            ${r.cards.map((c: any, i: number) => `
+            ${r.cards.map((c: any) => `
               <div>
                 <strong>${c.name} ${c.inverted ? '(Inverted)' : ''}</strong>
-                <div style="font-size: 11px; color: var(--lumiverse-text-muted);">${c.interpretation || ''}</div>
+                <div style="font-size: 11px; color: var(--lumiverse-text-muted); white-space: pre-wrap;">${c.interpretation || ''}</div>
               </div>
             `).join('')}
           </div>
@@ -308,17 +331,20 @@ export function setup(ctx: SpindleFrontendContext) {
 
   function renderFlipControls() {
     if (!currentDraw) return
-    if (flippedCount >= currentDraw.cards.length) {
-      flipControlsArea.innerHTML = `<button class="tarot-btn" id="tarot-synth-btn">Synthesize Reading</button>`
-      const synthBtn = flipControlsArea.querySelector('#tarot-synth-btn') as HTMLButtonElement
-      synthBtn.addEventListener('click', synthesizeReading)
+    if (readIndices.size >= currentDraw.cards.length) {
+      if (!synthesisStarted) {
+        flipControlsArea.innerHTML = `<button class="tarot-btn" id="tarot-synth-btn">Synthesize Reading</button>`
+        flipControlsArea.querySelector('#tarot-synth-btn')?.addEventListener('click', synthesizeReading)
+      }
       return
     }
+    
+    const nextUnread = currentDraw.cards.findIndex((_, i) => !readIndices.has(i))
     
     flipControlsArea.innerHTML = `
       <div class="tarot-flip-controls">
         <button class="tarot-btn" id="tarot-flip-btn" ${isStreaming ? 'disabled' : ''}>
-          ${isStreaming ? 'Reading...' : `Flip Card ${flippedCount + 1}`}
+          ${isStreaming ? 'Reading...' : `Flip Card ${nextUnread + 1}`}
         </button>
         <label class="tarot-checkbox">
           <input type="checkbox" id="tarot-auto-advance" ${autoAdvance ? 'checked' : ''} />
@@ -330,16 +356,16 @@ export function setup(ctx: SpindleFrontendContext) {
     const flipBtn = flipControlsArea.querySelector('#tarot-flip-btn') as HTMLButtonElement
     const autoCheck = flipControlsArea.querySelector('#tarot-auto-advance') as HTMLInputElement
     
-    flipBtn.addEventListener('click', () => { if (!isStreaming) flipCard(flippedCount) })
+    flipBtn.addEventListener('click', () => { if (!isStreaming) flipCard(nextUnread) })
     autoCheck.addEventListener('change', (e) => {
       autoAdvance = (e.target as HTMLInputElement).checked
-      if (autoAdvance && !isStreaming && flippedCount < currentDraw.cards.length) {
-        flipCard(flippedCount)
+      if (autoAdvance && !isStreaming && readIndices.size < currentDraw.cards.length) {
+        flipCard(nextUnread)
       }
     })
   }
 
-  function flipCard(index: number) {
+  function flipCard(index: number, isRetry = false) {
     if (isStreaming || !currentDraw) return
     isStreaming = true
     
@@ -350,6 +376,12 @@ export function setup(ctx: SpindleFrontendContext) {
       if (card.inverted) img.classList.add('inverted')
     }
     
+    const textDiv = cardsArea.querySelector(`.tarot-card-text[data-index="${index}"]`) as HTMLElement
+    if (textDiv) textDiv.textContent = ''
+    
+    const rereadBtn = cardsArea.querySelector(`.tarot-card-slot[data-index="${index}"] .tarot-reread-btn`)
+    if (rereadBtn) rereadBtn.remove()
+    
     renderFlipControls()
     ctx.sendToBackend({ type: 'flip_card', cardIndex: index })
   }
@@ -357,9 +389,20 @@ export function setup(ctx: SpindleFrontendContext) {
   function synthesizeReading() {
     if (isStreaming) return
     isStreaming = true
+    synthesisStarted = true
     flipControlsArea.innerHTML = '<div style="color: var(--lumiverse-text-muted); font-size: 12px; text-align: center; margin-top: 8px;">Synthesizing reading...</div>'
     ctx.sendToBackend({ type: 'synthesize' })
   }
+
+  // Synthesis Re-read button
+  synthRetryBtn.addEventListener('click', () => {
+    if (isStreaming) return
+    isStreaming = true
+    synthesisText.textContent = ''
+    synthRetryBtn.style.display = 'none'
+    flipControlsArea.innerHTML = '<div style="color: var(--lumiverse-text-muted); font-size: 12px; text-align: center; margin-top: 8px;">Re-synthesizing...</div>'
+    ctx.sendToBackend({ type: 'synthesize' })
+  })
 
   // --- Save Settings ---
   saveBtn.addEventListener('click', () => {
