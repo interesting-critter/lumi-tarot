@@ -93,9 +93,13 @@ spindle.onFrontendMessage(async (payload: any, userId) => {
   }
 
   if (payload.type === 'flip_card') {
+    spindle.log.info(`Tarot Reader: Received flip_card request for index ${payload.cardIndex}`)
     const { cardIndex } = payload
     const reading = currentReadings.get(userId)
-    if (!reading) return
+    if (!reading) {
+      spindle.log.error('No active reading found for user.')
+      return
+    }
 
     const card = reading.cards[cardIndex]
     const cardData = TAROT_DECK.find(c => c.id === card.id)
@@ -124,7 +128,6 @@ spindle.onFrontendMessage(async (payload: any, userId) => {
       readerCharacter = activeChatCharacter
     }
 
-    // Fetch chat history (last 5 messages)
     let historyText = ""
     if (activeChat) {
       const messages = await spindle.chat.getMessages(activeChat.id)
@@ -132,7 +135,6 @@ spindle.onFrontendMessage(async (payload: any, userId) => {
       historyText = recent.map(m => `${m.role === 'user' ? 'User' : readerCharacter?.name || 'Assistant'}: ${m.content}`).join('\n')
     }
 
-    // Construct prompts
     let systemPrompt = `${settings.systemPrompt}\n\nYou are roleplaying as ${readerCharacter?.name || 'a tarot reader'}.`
     if (readerCharacter?.description) systemPrompt += `\n${readerCharacter.description}`
     if (readerCharacter?.personality) systemPrompt += `\nPersonality: ${readerCharacter.personality}`
@@ -143,7 +145,6 @@ spindle.onFrontendMessage(async (payload: any, userId) => {
       userPrompt += `User's Question: ${reading.question}\n\n`
     } else {
       userPrompt += `The user did not ask a specific question. Use this recent chat history as context:\n${historyText}\n\n`
-      // If reader is overridden, include active chat character description in context
       if (readerCharacter && activeChatCharacter && readerCharacter.id !== activeChatCharacter.id) {
         userPrompt += `Note: The user is currently interacting with ${activeChatCharacter.name} in their chat. Context: ${activeChatCharacter.description}\n\n`
       }
@@ -182,9 +183,7 @@ spindle.onFrontendMessage(async (payload: any, userId) => {
       }
       spindle.sendToFrontend({ type: 'stream_end', cardIndex, fullText }, userId)
     } catch (err: any) {
+      spindle.log.error(`Tarot Reader: Stream error: ${err.message}`)
       spindle.sendToFrontend({ type: 'stream_end', cardIndex, fullText: `Error: ${err.message}` }, userId)
     }
   }
-})
-
-spindle.log.info('Tarot Reader backend loaded.')
