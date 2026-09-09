@@ -93,13 +93,9 @@ spindle.onFrontendMessage(async (payload: any, userId) => {
   }
 
   if (payload.type === 'flip_card') {
-    spindle.log.info(`Tarot Reader: Received flip_card request for index ${payload.cardIndex}`)
     const { cardIndex } = payload
     const reading = currentReadings.get(userId)
-    if (!reading) {
-      spindle.log.error('No active reading found for user.')
-      return
-    }
+    if (!reading) return
 
     const card = reading.cards[cardIndex]
     const cardData = TAROT_DECK.find(c => c.id === card.id)
@@ -160,6 +156,7 @@ spindle.onFrontendMessage(async (payload: any, userId) => {
     userPrompt += `Traditional Meaning: ${meaning}\n\n`
     userPrompt += `Interpret this card for the user in 2-3 sentences.`
 
+    spindle.log.info(`Tarot Reader: Flipping card ${cardIndex} (${cardData.name})...`)
     spindle.sendToFrontend({ type: 'stream_start', cardIndex }, userId)
 
     try {
@@ -181,9 +178,11 @@ spindle.onFrontendMessage(async (payload: any, userId) => {
           fullText = chunk.content || fullText
         }
       }
+      spindle.log.info(`Tarot Reader: Card ${cardIndex} stream complete.`)
       spindle.sendToFrontend({ type: 'stream_end', cardIndex, fullText }, userId)
     } catch (err: any) {
-      spindle.log.error(`Tarot Reader: Stream error: ${err.message}`)
+      spindle.log.error(`Tarot Reader: Stream failed - ${err.message}`)
+      spindle.toast.error(`Tarot generation failed: ${err.message}`)
       spindle.sendToFrontend({ type: 'stream_end', cardIndex, fullText: `Error: ${err.message}` }, userId)
     }
-  }
+    }
