@@ -185,4 +185,7 @@ spindle.onFrontendMessage(async (payload: any, userId) => {
       spindle.toast.error(`Tarot generation failed: ${err.message}`)
       spindle.sendToFrontend({ type: 'stream_end', cardIndex, fullText: `Error: ${err.message}` }, userId)
     }
-    }
+        }
+})
+
+spindle.log.info('Tarot Reader backend loaded.')
