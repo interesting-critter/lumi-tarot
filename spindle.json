@@ -1,0 +1,15 @@
+{
+  "version": "1.0.0",
+  "name": "lumi-tarot",
+  "identifier": "lumi_tarot",
+  "author": "critter",
+  "github": "https://github.com/interesting-critter/lumi-tarot",
+  "homepage": "https://github.com/interesting-critter/lumi-tarot",
+  "description": "Interactive tarot readings powered by LLM streaming.",
+  "permissions": ["generation", "characters", "chats", "chat_mutation", "personas", "images"],
+  "entry_backend": "dist/backend.js",
+  "entry_frontend": "dist/frontend.js",
+  "storage_seed_files": [
+    { "from": "assets/tarot/", "to": "assets/tarot/", "overwrite": true }
+  ]
+}
