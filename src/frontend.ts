@@ -32,7 +32,7 @@ export function setup(ctx: SpindleFrontendContext) {
     .tarot-history-item { padding: 12px; background: var(--lumiverse-fill-subtle); border: 1px solid var(--lumiverse-border); border-radius: 8px; margin-bottom: 12px; }
     .tarot-history-meta { font-size: 11px; color: var(--lumiverse-text-muted); margin-bottom: 8px; }
     
-    .tarot-flip-controls { display: flex; gap: 8px; align-items: center; margin-top: 12px; }
+    .tarot-flip-controls { display: flex; flex-direction: column; gap: 8px; align-items: stretch; margin-top: 12px; }
     .tarot-checkbox { display: flex; gap: 4px; align-items: center; font-size: 12px; color: var(--lumiverse-text-muted); cursor: pointer; }
     
     /* Spread layouts */
