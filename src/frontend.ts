@@ -15,49 +15,28 @@ export function setup(ctx: SpindleFrontendContext) {
     
     .tarot-input { width: 100%; box-sizing: border-box; padding: 8px; background: var(--lumiverse-fill); border: 1px solid var(--lumiverse-border); border-radius: var(--lumiverse-radius); color: var(--lumiverse-text); font-family: inherit; font-size: 14px; }
     
-    /* --- Spread Layouts --- */
     .tarot-spread-grid { display: grid; gap: 12px; margin-top: 16px; width: 100%; padding: 12px 0; }
     .tarot-card-slot { display: flex; flex-direction: column; align-items: center; gap: 4px; position: relative; }
     .tarot-card-img { width: 100%; max-width: 65px; aspect-ratio: 2/3.5; border-radius: 6px; object-fit: cover; box-shadow: 0 4px 8px rgba(0,0,0,0.3); cursor: pointer; transition: transform 0.2s; }
     .tarot-card-img:hover { transform: scale(1.05); }
+    .tarot-card-img.inverted { transform: rotate(180deg); }
+    .tarot-card-img.inverted:hover { transform: rotate(180deg) scale(1.05); }
     .tarot-card-pos { font-size: 10px; color: var(--lumiverse-text-muted); font-weight: 600; text-transform: uppercase; text-align: center; }
     
-    /* 1 Card */
+    .tarot-card-text { font-size: 11px; color: var(--lumiverse-text-muted); margin-top: 8px; padding: 8px; background: var(--lumiverse-fill); border-radius: 4px; width: 100%; box-sizing: border-box; text-align: left; min-height: 40px; border: 1px solid var(--lumiverse-border); }
+    
+    .tarot-flip-controls { display: flex; gap: 8px; align-items: center; margin-top: 12px; }
+    .tarot-checkbox { display: flex; gap: 4px; align-items: center; font-size: 12px; color: var(--lumiverse-text-muted); cursor: pointer; }
+    
+    /* Spread layouts (same as before) */
     .tarot-spread-1 { grid-template-columns: 1fr; justify-items: center; }
-    
-    /* 3 Card */
     .tarot-spread-3 { grid-template-columns: repeat(3, 1fr); justify-items: center; }
-    
-    /* 5 Card Cross */
     .tarot-spread-5 { grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(3, auto); justify-items: center; align-items: center; }
-    .s5-0 { grid-area: 2 / 1; } /* Past (Left) */
-    .s5-1 { grid-area: 2 / 2; } /* Present (Center) */
-    .s5-2 { grid-area: 2 / 3; } /* Future (Right) */
-    .s5-3 { grid-area: 1 / 2; } /* Core Reason (Top) */
-    .s5-4 { grid-area: 3 / 2; } /* Potential (Bottom) */
-    
-    /* 7 Card Horseshoe */
+    .s5-0 { grid-area: 2 / 1; } .s5-1 { grid-area: 2 / 2; } .s5-2 { grid-area: 2 / 3; } .s5-3 { grid-area: 1 / 2; } .s5-4 { grid-area: 3 / 2; }
     .tarot-spread-7 { grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(4, auto); justify-items: center; }
-    .s7-0 { grid-area: 4 / 1; } /* Bottom Left */
-    .s7-1 { grid-area: 3 / 1; }
-    .s7-2 { grid-area: 2 / 1; }
-    .s7-3 { grid-area: 1 / 2; } /* Top Center */
-    .s7-4 { grid-area: 2 / 3; }
-    .s7-5 { grid-area: 3 / 3; }
-    .s7-6 { grid-area: 4 / 3; } /* Bottom Right */
-    
-    /* 10 Card Celtic Cross */
+    .s7-0 { grid-area: 4 / 1; } .s7-1 { grid-area: 3 / 1; } .s7-2 { grid-area: 2 / 1; } .s7-3 { grid-area: 1 / 2; } .s7-4 { grid-area: 2 / 3; } .s7-5 { grid-area: 3 / 3; } .s7-6 { grid-area: 4 / 3; }
     .tarot-spread-10 { grid-template-columns: repeat(4, 1fr); grid-template-rows: repeat(5, auto); justify-items: center; align-items: center; }
-    .s10-0 { grid-area: 3 / 2; z-index: 1; } /* Center (Cover) */
-    .s10-1 { grid-area: 3 / 2; transform: rotate(90deg); z-index: 2; } /* Crossing */
-    .s10-2 { grid-area: 4 / 2; } /* Foundation */
-    .s10-3 { grid-area: 3 / 1; } /* Recent Past */
-    .s10-4 { grid-area: 2 / 2; } /* Possible Future */
-    .s10-5 { grid-area: 3 / 3; } /* Near Future */
-    .s10-6 { grid-area: 5 / 4; } /* Self (Bottom of Staff) */
-    .s10-7 { grid-area: 4 / 4; } /* Environment */
-    .s10-8 { grid-area: 3 / 4; } /* Hopes/Fears */
-    .s10-9 { grid-area: 2 / 4; } /* Outcome (Top of Staff) */
+    .s10-0 { grid-area: 3 / 2; z-index: 1; } .s10-1 { grid-area: 3 / 2; transform: rotate(90deg); z-index: 2; } .s10-2 { grid-area: 4 / 2; } .s10-3 { grid-area: 3 / 1; } .s10-4 { grid-area: 2 / 2; } .s10-5 { grid-area: 3 / 3; } .s10-6 { grid-area: 5 / 4; } .s10-7 { grid-area: 4 / 4; } .s10-8 { grid-area: 3 / 4; } .s10-9 { grid-area: 2 / 4; }
   `)
 
   const tab = ctx.ui.registerDrawerTab({
@@ -75,7 +54,6 @@ export function setup(ctx: SpindleFrontendContext) {
         <button class="tarot-nav-btn" data-view="settings">Settings</button>
       </div>
       
-      <!-- Reading View -->
       <div id="tarot-reading-view" class="tarot-view">
         <div class="tarot-section">
           <div class="tarot-label">Reading Setup</div>
@@ -87,13 +65,14 @@ export function setup(ctx: SpindleFrontendContext) {
             <option value="7">7 Cards (Horseshoe)</option>
             <option value="10">10 Cards (Celtic Cross)</option>
           </select>
+          <div id="tarot-reader-select-slot"></div>
           <textarea id="tarot-question" class="tarot-input" rows="3" placeholder="Ask a question (or leave blank to use chat history)"></textarea>
           <button class="tarot-btn" id="tarot-draw-btn">Draw Cards</button>
         </div>
         <div id="tarot-cards-area"></div>
+        <div id="tarot-flip-controls-area"></div>
       </div>
 
-      <!-- Settings View -->
       <div id="tarot-settings-view" class="tarot-view" style="display: none;">
         <div class="tarot-section">
           <div class="tarot-label">Custom System Prompt</div>
@@ -114,6 +93,8 @@ export function setup(ctx: SpindleFrontendContext) {
   const questionInput = tab.root.querySelector('#tarot-question') as HTMLTextAreaElement
   const drawBtn = tab.root.querySelector('#tarot-draw-btn') as HTMLButtonElement
   const cardsArea = tab.root.querySelector('#tarot-cards-area') as HTMLElement
+  const flipControlsArea = tab.root.querySelector('#tarot-flip-controls-area') as HTMLElement
+  const readerSelectSlot = tab.root.querySelector('#tarot-reader-select-slot') as HTMLElement
   
   const sysPromptSlot = tab.root.querySelector('#tarot-sys-prompt-slot') as HTMLElement
   const connSlot = tab.root.querySelector('#tarot-conn-slot') as HTMLElement
@@ -123,8 +104,15 @@ export function setup(ctx: SpindleFrontendContext) {
   let currentSettings = { systemPrompt: '', connectionId: '' }
   let sysPromptHandle: any = null
   let connHandle: any = null
+  let readerSelectHandle: any = null
   let imageUrls: Record<number, string> = {}
   let currentDraw: { cards: any[], positions: string[] } | null = null
+  let activeChatId: string | null = null
+  let characters: any[] = []
+  let readerCharacterId: string = ''
+  let flippedCount = 0
+  let isStreaming = false
+  let autoAdvance = false
 
   // --- Navigation Router ---
   navBtns.forEach(btn => {
@@ -148,12 +136,33 @@ export function setup(ctx: SpindleFrontendContext) {
     if (payload.type === 'init_data') {
       imageUrls = payload.imageUrls
       currentSettings = payload.settings
+      activeChatId = payload.activeChatId
+      characters = payload.characters
+
+      // Determine default reader (active chat character)
+      let defaultReaderId = ''
+      if (activeChatId) {
+        // We don't have the active chat's character ID directly, but we can let the backend handle it.
+        // The backend will use the active chat character if readerCharacterId is empty.
+      }
+
+      if (readerSelectHandle) readerSelectHandle.destroy()
+      readerSelectHandle = ctx.components.mountSelect(readerSelectSlot, {
+        value: '',
+        placeholder: 'Reader (Defaults to Active Chat)',
+        options: characters.map((c: any) => ({
+          value: c.id,
+          label: c.name,
+        })),
+        clearable: true,
+        onChange: (val: string) => { readerCharacterId = val }
+      })
 
       if (sysPromptHandle) sysPromptHandle.destroy()
       sysPromptHandle = ctx.components.mountTextArea(sysPromptSlot, {
         value: currentSettings.systemPrompt,
         rows: 6,
-        placeholder: 'Enter custom system prompt for the reader...',
+        placeholder: 'Enter custom system prompt...',
         onChange: (val: string) => { currentSettings.systemPrompt = val }
       })
 
@@ -161,18 +170,48 @@ export function setup(ctx: SpindleFrontendContext) {
       connHandle = ctx.components.mountSelect(connSlot, {
         value: currentSettings.connectionId,
         placeholder: 'Select LLM Connection',
-        options: payload.connections.map((c: any) => ({
-          value: c.id,
-          label: c.name || c.id,
-          group: c.provider
-        })),
+        options: payload.connections.map((c: any) => ({ value: c.id, label: c.name || c.id, group: c.provider })),
         onChange: (val: string) => { currentSettings.connectionId = val }
       })
     }
     
     if (payload.type === 'draw_result') {
       currentDraw = payload
+      flippedCount = 0
       renderCards()
+      renderFlipControls()
+    }
+    
+    if (payload.type === 'stream_start') {
+      // Create text container
+      const slot = cardsArea.querySelector(`.tarot-card-slot[data-index="${payload.cardIndex}"]`)
+      if (slot && !slot.querySelector('.tarot-card-text')) {
+        const textDiv = document.createElement('div')
+        textDiv.className = 'tarot-card-text'
+        textDiv.setAttribute('data-index', payload.cardIndex)
+        slot.appendChild(textDiv)
+      }
+    }
+    
+    if (payload.type === 'stream_token') {
+      const textDiv = cardsArea.querySelector(`.tarot-card-text[data-index="${payload.cardIndex}"]`)
+      if (textDiv) {
+        textDiv.textContent += payload.token
+        textDiv.scrollTop = textDiv.scrollHeight
+      }
+    }
+    
+    if (payload.type === 'stream_end') {
+      isStreaming = false
+      flippedCount++
+      
+      // Update flip controls
+      renderFlipControls()
+      
+      // Auto-advance if enabled
+      if (autoAdvance && currentDraw && flippedCount < currentDraw.cards.length) {
+        setTimeout(() => flipCard(flippedCount), 800)
+      }
     }
   })
 
@@ -181,52 +220,87 @@ export function setup(ctx: SpindleFrontendContext) {
     const val = spreadSelect.value
     let spreadType = val
     let variant = 'ppf'
-    
-    if (val === '3-mbs') {
-      spreadType = '3'
-      variant = 'mbs'
-    }
+    if (val === '3-mbs') { spreadType = '3'; variant = 'mbs' }
     
     cardsArea.innerHTML = '<div style="color: var(--lumiverse-text-muted); font-size: 13px; margin-top: 16px; text-align: center;">Drawing cards...</div>'
-    ctx.sendToBackend({ type: 'draw_cards', spreadType, variant })
+    flipControlsArea.innerHTML = ''
+    ctx.sendToBackend({ type: 'draw_cards', spreadType, variant, question: questionInput.value, readerCharacterId })
   })
 
   function renderCards() {
     if (!currentDraw) return
     const { cards, positions } = currentDraw
     const count = cards.length
-    
     let gridClass = ''
     let cardClasses: string[] = []
     
-    // Determine layout classes based on count
-    if (count === 1) {
-      gridClass = 'tarot-spread-1'
-      cardClasses = ['s1-0']
-    } else if (count === 3) {
-      gridClass = 'tarot-spread-3'
-      cardClasses = ['s3-0', 's3-1', 's3-2']
-    } else if (count === 5) {
-      gridClass = 'tarot-spread-5'
-      cardClasses = ['s5-0', 's5-1', 's5-2', 's5-3', 's5-4']
-    } else if (count === 7) {
-      gridClass = 'tarot-spread-7'
-      cardClasses = ['s7-0', 's7-1', 's7-2', 's7-3', 's7-4', 's7-5', 's7-6']
-    } else if (count === 10) {
-      gridClass = 'tarot-spread-10'
-      cardClasses = ['s10-0', 's10-1', 's10-2', 's10-3', 's10-4', 's10-5', 's10-6', 's10-7', 's10-8', 's10-9']
-    }
+    if (count === 1) { gridClass = 'tarot-spread-1'; cardClasses = ['s1-0'] }
+    else if (count === 3) { gridClass = 'tarot-spread-3'; cardClasses = ['s3-0', 's3-1', 's3-2'] }
+    else if (count === 5) { gridClass = 'tarot-spread-5'; cardClasses = ['s5-0', 's5-1', 's5-2', 's5-3', 's5-4'] }
+    else if (count === 7) { gridClass = 'tarot-spread-7'; cardClasses = ['s7-0', 's7-1', 's7-2', 's7-3', 's7-4', 's7-5', 's7-6'] }
+    else if (count === 10) { gridClass = 'tarot-spread-10'; cardClasses = ['s10-0', 's10-1', 's10-2', 's10-3', 's10-4', 's10-5', 's10-6', 's10-7', 's10-8', 's10-9'] }
     
     cardsArea.innerHTML = `
       <div class="tarot-spread-grid ${gridClass}">
         ${cards.map((card, i) => `
-          <div class="tarot-card-slot ${cardClasses[i] || ''}">
+          <div class="tarot-card-slot ${cardClasses[i] || ''}" data-index="${i}">
             <img src="${imageUrls[78]}" class="tarot-card-img" data-index="${i}" />
             <div class="tarot-card-pos">${positions[i]}</div>
           </div>
         `).join('')}
       </div>
     `
+  }
+
+  // --- Flip Logic ---
+  function renderFlipControls() {
+    if (!currentDraw) return
+    if (flippedCount >= currentDraw.cards.length) {
+      flipControlsArea.innerHTML = '<div style="color: var(--lumiverse-text-muted); font-size: 12px; text-align: center; margin-top: 8px;">All cards flipped. Ready for synthesis (Phase 5).</div>'
+      return
+    }
+    
+    flipControlsArea.innerHTML = `
+      <div class="tarot-flip-controls">
+        <button class="tarot-btn" id="tarot-flip-btn" ${isStreaming ? 'disabled' : ''}>
+          ${isStreaming ? 'Reading...' : `Flip Card ${flippedCount + 1}`}
+        </button>
+        <label class="tarot-checkbox">
+          <input type="checkbox" id="tarot-auto-advance" ${autoAdvance ? 'checked' : ''} />
+          Auto-advance
+        </label>
+      </div>
+    `
+    
+    const flipBtn = flipControlsArea.querySelector('#tarot-flip-btn') as HTMLButtonElement
+    const autoCheck = flipControlsArea.querySelector('#tarot-auto-advance') as HTMLInputElement
+    
+    flipBtn.addEventListener('click', () => {
+      if (!isStreaming) flipCard(flippedCount)
+    })
+    
+    autoCheck.addEventListener('change', (e) => {
+      autoAdvance = (e.target as HTMLInputElement).checked
+      if (autoAdvance && !isStreaming && flippedCount < currentDraw.cards.length) {
+        flipCard(flippedCount)
+      }
+    })
+  }
+
+  function flipCard(index: number) {
+    if (isStreaming || !currentDraw) return
+    isStreaming = true
+    
+    // Update UI to show actual card
+    const card = currentDraw.cards[index]
+    const img = cardsArea.querySelector(`.tarot-card-img[data-index="${index}"]`) as HTMLImageElement
+    if (img) {
+      img.src = imageUrls[card.id]
+      if (card.inverted) img.classList.add('inverted')
+    }
+    
+    renderFlipControls()
+    ctx.sendToBackend({ type: 'flip_card', cardIndex: index })
   }
 
   // --- Save Settings ---
@@ -243,6 +317,7 @@ export function setup(ctx: SpindleFrontendContext) {
     removeStyle()
     if (sysPromptHandle) sysPromptHandle.destroy()
     if (connHandle) connHandle.destroy()
+    if (readerSelectHandle) readerSelectHandle.destroy()
     tab.destroy()
   }
-    }
+                  }
