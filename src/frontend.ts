@@ -39,11 +39,11 @@ export function setup(ctx: SpindleFrontendContext) {
     /* 7 Card Horseshoe */
     .tarot-spread-7 { grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(4, auto); justify-items: center; }
     .s7-0 { grid-area: 4 / 1; } /* Bottom Left */
-    .s7-1 { grid-area: 3 / 1; }
-    .s7-2 { grid-area: 2 / 1; }
+    .s7-1 { grid-area: 3 / 1.33; }
+    .s7-2 { grid-area: 2 / 1.66; }
     .s7-3 { grid-area: 1 / 2; } /* Top Center */
-    .s7-4 { grid-area: 2 / 3; }
-    .s7-5 { grid-area: 3 / 3; }
+    .s7-4 { grid-area: 2 / 2.33; }
+    .s7-5 { grid-area: 3 / 2.66; }
     .s7-6 { grid-area: 4 / 3; } /* Bottom Right */
     
     /* 10 Card Celtic Cross */
