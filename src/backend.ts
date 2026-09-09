@@ -43,7 +43,6 @@ async function ensureAssetsSeeded(userId: string) {
   results.forEach((result, index) => {
     const id = uploadItems[index].filename.split('.')[0]
     if (result.id) {
-      // We'll use 'lg' for a good balance of quality/performance
       newUrls[Number(id)] = `/api/v1/images/${result.id}?size=lg`
     } else {
       spindle.log.error(`Failed to upload image ${id}: ${result.error}`)
@@ -55,19 +54,19 @@ async function ensureAssetsSeeded(userId: string) {
   spindle.log.info('lumi-tarot: Successfully seeded and cached all images.')
 }
 
-// Basic init handler so the frontend can request data once built
 spindle.onFrontendMessage(async (payload: any, userId) => {
   if (payload.type === 'init') {
-    // Ensure assets are ready before responding, now that we have the userId
+    // Ensure assets are ready before responding
     if (Object.keys(cachedImageUrls).length === 0) {
       await ensureAssetsSeeded(userId)
     }
 
-    // Fetch user-specific data
+    // Fetch user-specific data (operator-scoped requires userId in options or as arg)
     const connections = await spindle.connections.list(userId)
     const activeChat = await spindle.chats.getActive(userId)
     
-    const { data } = await spindle.characters.list({ limit: 200 }, userId)
+    // FIX: userId must be inside the options object for characters.list
+    const { data } = await spindle.characters.list({ limit: 200, userId })
     const characters = data
 
     const settings = await spindle.storage.getJson('settings.json', {
@@ -87,14 +86,13 @@ spindle.onFrontendMessage(async (payload: any, userId) => {
     }, userId)
   }
 
-    // Add this inside spindle.onFrontendMessage, after the 'init' block
   if (payload.type === 'save_settings') {
     await spindle.storage.setJson('settings.json', {
       systemPrompt: payload.systemPrompt,
       connectionId: payload.connectionId
     })
     spindle.toast.success('Tarot settings saved!')
-   }
+  }
 })
 
 spindle.log.info('lumi-tarot backend loaded.')
