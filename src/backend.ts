@@ -94,7 +94,7 @@ spindle.onFrontendMessage(async (payload: any, userId) => {
     spindle.toast.success('Tarot settings saved!')
 
   }
-    if (payload.type === 'draw_cards') {
+      if (payload.type === 'draw_cards') {
     const { spreadType, variant } = payload
     let count = 1
     let positions: string[] = []
@@ -108,13 +108,13 @@ spindle.onFrontendMessage(async (payload: any, userId) => {
       else positions = ['Mind', 'Body', 'Soul']
     } else if (spreadType === '5') {
       count = 5
-      positions = ['Past', 'Present', 'Future', 'Hidden', 'Outcome']
+      positions = ['Past', 'Present', 'Future', 'Core Reason', 'Potential']
     } else if (spreadType === '7') {
       count = 7
-      positions = ['Past', 'Present', 'Future', 'Hidden', 'External', 'Internal', 'Outcome']
+      positions = ['Past', 'Present', 'Hidden Influences', 'Obstacles', 'Potential', 'Advice', 'Potential Outcome']
     } else if (spreadType === '10') {
       count = 10
-      positions = ['1. Cover', '2. Crossing', '3. Foundation', '4. Recent Past', '5. Possible Future', '6. Near Future', '7. Self', '8. Environment', '9. Hopes/Fears', '10. Outcome']
+      positions = ['Present', 'Challenge', 'Focus', 'Past', 'Strengths', 'Near Future', 'Advice', 'Environment', 'Hopes and Fears', 'Potential Outcome']
     }
     
     // Draw cards without replacement
@@ -132,7 +132,7 @@ spindle.onFrontendMessage(async (payload: any, userId) => {
       cards: drawnCards,
       positions
     }, userId)
-  }
+      }
 })
 
 spindle.log.info('lumi-tarot backend loaded.')
