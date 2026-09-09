@@ -3,10 +3,10 @@ declare const spindle: import('lumiverse-spindle-types').SpindleAPI
 // In-memory cache for asset URLs
 let cachedImageUrls: Record<number, string> = {}
 
-async function ensureAssetsSeeded() {
+async function ensureAssetsSeeded(userId: string) {
   spindle.log.info('lumi-tarot: Checking assets...')
   
-  // Check if we already have URLs cached in storage
+  // Check if we already have URLs cached in extension storage
   const storedUrls = await spindle.storage.getJson<Record<number, string> | null>('image_urls.json', { fallback: null })
   if (storedUrls && Object.keys(storedUrls).length === 79) {
     cachedImageUrls = storedUrls
@@ -36,14 +36,14 @@ async function ensureAssetsSeeded() {
     return
   }
 
-  const results = await spindle.images.uploadMany(uploadItems)
+  // Pass userId to uploadMany so it knows who owns the images
+  const results = await spindle.images.uploadMany(uploadItems, { userId })
   
   const newUrls: Record<number, string> = {}
   results.forEach((result, index) => {
     const id = uploadItems[index].filename.split('.')[0]
     if (result.id) {
-      // We store the URL with specificity 'sm' for thumbnails (faster loading)
-      // and 'full' for the main view if needed. We'll use 'lg' for a good balance.
+      // We'll use 'lg' for a good balance of quality/performance
       newUrls[Number(id)] = `/api/v1/images/${result.id}?size=lg`
     } else {
       spindle.log.error(`Failed to upload image ${id}: ${result.error}`)
@@ -58,17 +58,17 @@ async function ensureAssetsSeeded() {
 // Basic init handler so the frontend can request data once built
 spindle.onFrontendMessage(async (payload: any, userId) => {
   if (payload.type === 'init') {
-    // Ensure assets are ready before responding
+    // Ensure assets are ready before responding, now that we have the userId
     if (Object.keys(cachedImageUrls).length === 0) {
-      await ensureAssetsSeeded()
+      await ensureAssetsSeeded(userId)
     }
 
+    // Fetch user-specific data
     const connections = await spindle.connections.list(userId)
     const activeChat = await spindle.chats.getActive(userId)
     
-    let characters = []
     const { data } = await spindle.characters.list({ limit: 200 }, userId)
-    characters = data
+    const characters = data
 
     const settings = await spindle.storage.getJson('settings.json', {
       fallback: {
@@ -87,8 +87,5 @@ spindle.onFrontendMessage(async (payload: any, userId) => {
     }, userId)
   }
 })
-
-// Start seeding immediately on startup
-ensureAssetsSeeded()
 
 spindle.log.info('lumi-tarot backend loaded.')
