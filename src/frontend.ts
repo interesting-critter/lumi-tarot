@@ -23,9 +23,12 @@ export function setup(ctx: SpindleFrontendContext) {
     .tarot-card-img.inverted:hover { transform: rotate(180deg) scale(1.05); }
     .tarot-card-pos { font-size: 10px; color: var(--lumiverse-text-muted); font-weight: 600; text-transform: uppercase; text-align: center; }
     
-    .tarot-card-text { font-size: 11px; color: var(--lumiverse-text); margin-top: 8px; padding: 8px; background: var(--lumiverse-fill); border-radius: 4px; width: 100%; box-sizing: border-box; text-align: left; min-height: 40px; border: 1px solid var(--lumiverse-border); white-space: pre-wrap; }
+    .tarot-card-text { font-size: 12px; color: var(--lumiverse-text); margin-top: 4px; padding: 10px; background: var(--lumiverse-fill); border-radius: 6px; width: 100%; box-sizing: border-box; text-align: left; min-height: 40px; border: 1px solid var(--lumiverse-border); white-space: pre-wrap; }
+    .tarot-interp-label { font-size: 13px; font-weight: 600; color: var(--lumiverse-text); margin-bottom: 4px; }
+    .tarot-interp-box { background: var(--lumiverse-fill-subtle); padding: 12px; border: 1px solid var(--lumiverse-border); border-radius: 8px; }
+    .tarot-card-name { font-size: 10px; color: var(--lumiverse-text); font-weight: 600; margin-top: 2px; text-align: center; }
     
-    .tarot-reread-btn { margin-top: 4px; padding: 4px 8px; font-size: 10px; background: var(--lumiverse-fill); color: var(--lumiverse-text-muted); border: 1px solid var(--lumiverse-border); border-radius: 4px; cursor: pointer; width: 100%; box-sizing: border-box; }
+    .tarot-reread-btn { margin-top: 8px; padding: 4px 8px; font-size: 10px; background: var(--lumiverse-fill); color: var(--lumiverse-text-muted); border: 1px solid var(--lumiverse-border); border-radius: 4px; cursor: pointer; width: 100%; box-sizing: border-box; }
     .tarot-reread-btn:hover { border-color: var(--lumiverse-accent); color: var(--lumiverse-accent); }
     
     .tarot-synthesis-box { margin-top: 16px; padding: 12px; background: var(--lumiverse-fill-subtle); border: 1px solid var(--lumiverse-border); border-radius: 8px; }
@@ -43,7 +46,7 @@ export function setup(ctx: SpindleFrontendContext) {
     .tarot-spread-7 { grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(4, auto); justify-items: center; }
     .s7-0 { grid-area: 4 / 1; } .s7-1 { grid-area: 3 / 1; } .s7-2 { grid-area: 2 / 1; } .s7-3 { grid-area: 1 / 2; } .s7-4 { grid-area: 2 / 3; } .s7-5 { grid-area: 3 / 3; } .s7-6 { grid-area: 4 / 3; }
     .tarot-spread-10 { grid-template-columns: repeat(4, 1fr); grid-template-rows: repeat(5, auto); justify-items: center; align-items: center; }
-    .s10-0 { grid-area: 3 / 2; z-index: 1; } .s10-1 { grid-area: 3 / 2; transform: rotate(90deg); z-index: 2; } .s10-2 { grid-area: 4 / 2; } .s10-3 { grid-area: 3 / 1; } .s10-4 { grid-area: 2 / 2; } .s10-5 { grid-area: 3 / 3; } .s10-6 { grid-area: 5 / 4; } .s10-7 { grid-area: 4 / 4; } .s10-8 { grid-area: 3 / 4; } .s10-9 { grid-area: 2 / 4; }
+    .s10-0 { grid-area: 3 / 2; z-index: 1; } .s10-1 { grid-area: 4 / 2; transform: rotate(90deg); z-index: 2; } .s10-2 { grid-area: 5 / 2; } .s10-3 { grid-area: 3 / 1; } .s10-4 { grid-area: 2 / 2; } .s10-5 { grid-area: 3 / 3; } .s10-6 { grid-area: 5 / 4; } .s10-7 { grid-area: 4 / 4; } .s10-8 { grid-area: 3 / 4; } .s10-9 { grid-area: 2 / 4; }
   `)
 
   const tab = ctx.ui.registerDrawerTab({
@@ -78,10 +81,10 @@ export function setup(ctx: SpindleFrontendContext) {
           <textarea id="tarot-question" class="tarot-input" rows="3" placeholder="Ask a question (or leave blank to use chat history)"></textarea>
           <button class="tarot-btn" id="tarot-draw-btn">Draw Cards</button>
         </div>
-        <div id="tarot-cards-area"></div>
-        <div id="tarot-flip-controls-area"></div>
-        <div id="tarot-synthesis-area" style="display: none;">
-          <div class="tarot-label">Overall Synthesis</div>
+          <div id="tarot-cards-area"></div>
+          <div id="tarot-flip-controls-area"></div>
+          <div id="tarot-interpretations-area" style="display: flex; flex-direction: column; gap: 12px; margin-top: 16px;"></div>
+          <div id="tarot-synthesis-area" style="display: none;">          <div class="tarot-label">Overall Synthesis</div>
           <div id="tarot-synthesis-text" class="tarot-card-text" style="min-height: 60px;"></div>
           <button class="tarot-btn" id="tarot-synth-retry-btn" style="margin-top: 8px; display: none;">Re-synthesize</button>
         </div>
@@ -190,6 +193,8 @@ export function setup(ctx: SpindleFrontendContext) {
       synthesisArea.style.display = 'none'
       synthesisText.textContent = ''
       synthRetryBtn.style.display = 'none'
+      const interpretationsArea = document.getElementById('tarot-interpretations-area')
+      if (interpretationsArea) interpretationsArea.innerHTML = ''
       renderCards()
       renderFlipControls()
     }
@@ -201,12 +206,28 @@ export function setup(ctx: SpindleFrontendContext) {
         synthesisText.textContent = ''
         synthRetryBtn.style.display = 'none'
       } else {
-        const slot = cardsArea.querySelector(`.tarot-card-slot[data-index="${payload.cardIndex}"]`)
-        if (slot && !slot.querySelector('.tarot-card-text')) {
+        const interpretationsArea = document.getElementById('tarot-interpretations-area')
+        if (interpretationsArea && !interpretationsArea.querySelector(`.tarot-interp-box[data-index="${payload.cardIndex}"]`)) {
+          const card = currentDraw?.cards[payload.cardIndex]
+          const position = currentDraw?.positions[payload.cardIndex] || ''
+          const cardName = card?.name || 'Unknown'
+          const orientation = card?.inverted ? 'Inverted' : 'Upright'
+          
+          const box = document.createElement('div')
+          box.className = 'tarot-interp-box'
+          box.setAttribute('data-index', payload.cardIndex)
+          
+          const label = document.createElement('div')
+          label.className = 'tarot-interp-label'
+          label.textContent = `${position} - ${cardName} (${orientation})`
+          
           const textDiv = document.createElement('div')
           textDiv.className = 'tarot-card-text'
           textDiv.setAttribute('data-index', payload.cardIndex)
-          slot.appendChild(textDiv)
+          
+          box.appendChild(label)
+          box.appendChild(textDiv)
+          interpretationsArea.appendChild(box)
         }
       }
     }
@@ -216,7 +237,8 @@ export function setup(ctx: SpindleFrontendContext) {
         synthesisText.textContent += payload.token
         synthesisText.scrollTop = synthesisText.scrollHeight
       } else {
-        const textDiv = cardsArea.querySelector(`.tarot-card-text[data-index="${payload.cardIndex}"]`)
+        const interpretationsArea = document.getElementById('tarot-interpretations-area')
+        const textDiv = interpretationsArea?.querySelector(`.tarot-card-text[data-index="${payload.cardIndex}"]`)
         if (textDiv) {
           textDiv.textContent += payload.token
           textDiv.scrollTop = textDiv.scrollHeight
@@ -237,19 +259,20 @@ export function setup(ctx: SpindleFrontendContext) {
         const cardIndex = parseInt(payload.cardIndex)
         readIndices.add(cardIndex)
         
-        const textDiv = cardsArea.querySelector(`.tarot-card-text[data-index="${payload.cardIndex}"]`) as HTMLElement
+        const interpretationsArea = document.getElementById('tarot-interpretations-area')
+        const textDiv = interpretationsArea?.querySelector(`.tarot-card-text[data-index="${payload.cardIndex}"]`) as HTMLElement
         if (textDiv && payload.fullText && !textDiv.textContent.trim()) {
           textDiv.textContent = payload.fullText
         }
         
-        // Inject Re-read button
-        const slot = cardsArea.querySelector(`.tarot-card-slot[data-index="${payload.cardIndex}"]`)
-        if (slot && !slot.querySelector('.tarot-reread-btn')) {
+        // Inject Re-read button into the interpretation box
+        const box = interpretationsArea?.querySelector(`.tarot-interp-box[data-index="${payload.cardIndex}"]`)
+        if (box && !box.querySelector('.tarot-reread-btn')) {
           const rereadBtn = document.createElement('button')
           rereadBtn.className = 'tarot-reread-btn'
           rereadBtn.textContent = 'Re-read Card'
           rereadBtn.addEventListener('click', () => flipCard(cardIndex, true))
-          slot.appendChild(rereadBtn)
+          box.appendChild(rereadBtn)
         }
         
         // Auto-advance logic
@@ -324,6 +347,7 @@ export function setup(ctx: SpindleFrontendContext) {
           <div class="tarot-card-slot ${cardClasses[i] || ''}" data-index="${i}">
             <img src="${imageUrls[78]}" class="tarot-card-img" data-index="${i}" />
             <div class="tarot-card-pos">${positions[i]}</div>
+            <div class="tarot-card-name" data-index="${i}"></div>
           </div>
         `).join('')}
       </div>
@@ -377,10 +401,18 @@ export function setup(ctx: SpindleFrontendContext) {
       if (card.inverted) img.classList.add('inverted')
     }
     
-    const textDiv = cardsArea.querySelector(`.tarot-card-text[data-index="${index}"]`) as HTMLElement
+    // Update card name under image
+    const nameDiv = cardsArea.querySelector(`.tarot-card-name[data-index="${index}"]`) as HTMLElement
+    if (nameDiv) {
+      nameDiv.textContent = `${card.name} ${card.inverted ? '(Inv)' : ''}`
+    }
+    
+    // Clear text if retrying
+    const interpretationsArea = document.getElementById('tarot-interpretations-area')
+    const textDiv = interpretationsArea?.querySelector(`.tarot-card-text[data-index="${index}"]`) as HTMLElement
     if (textDiv) textDiv.textContent = ''
     
-    const rereadBtn = cardsArea.querySelector(`.tarot-card-slot[data-index="${index}"] .tarot-reread-btn`)
+    const rereadBtn = interpretationsArea?.querySelector(`.tarot-interp-box[data-index="${index}"] .tarot-reread-btn`)
     if (rereadBtn) rereadBtn.remove()
     
     renderFlipControls()
