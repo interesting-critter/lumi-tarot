@@ -48,7 +48,7 @@ export function setup(ctx: SpindleFrontendContext) {
 
   const tab = ctx.ui.registerDrawerTab({
     id: 'lumi-tarot',
-    title: 'lumi-tarot',
+    title: 'LumiTarot',
     shortName: 'Tarot',
     description: 'Perform LLM-driven tarot readings',
     keywords: ['tarot', 'reading', 'cards', 'divination'],
