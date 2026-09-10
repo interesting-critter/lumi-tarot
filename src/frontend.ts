@@ -105,8 +105,8 @@ export function setup(ctx: SpindleFrontendContext) {
         
         <div class="tarot-section" style="margin-top: 16px;">
           <div class="tarot-label">History Management</div>
-          <button class="tarot-btn" id="tarot-clear-current-btn" style="background: var(--lumiverse-danger); color: white;">Clear Current Chat History</button>
-          <button class="tarot-btn" id="tarot-clear-all-btn" style="background: var(--lumiverse-danger); color: white;">Clear ALL Chat History</button>
+          <button class="tarot-btn" id="tarot-clear-current-btn" style="background: var(--lumiverse-danger); color: white;">Clear Current Chat's Reading History</button>
+          <button class="tarot-btn" id="tarot-clear-all-btn" style="background: var(--lumiverse-danger); color: white;">Clear ALL Chats' Reading History</button>
         </div>
       </div>
 
