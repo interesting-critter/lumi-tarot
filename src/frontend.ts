@@ -102,6 +102,12 @@ export function setup(ctx: SpindleFrontendContext) {
           <div id="tarot-conn-slot"></div>
           <button class="tarot-btn" id="tarot-save-btn" style="margin-top: 8px;">Save Settings</button>
         </div>
+        
+        <div class="tarot-section" style="margin-top: 16px;">
+          <div class="tarot-label">History Management</div>
+          <button class="tarot-btn" id="tarot-clear-current-btn" style="background: var(--lumiverse-danger); color: white;">Clear Current Chat History</button>
+          <button class="tarot-btn" id="tarot-clear-all-btn" style="background: var(--lumiverse-danger); color: white;">Clear ALL Chat History</button>
+        </div>
       </div>
 
       <div id="tarot-history-view" class="tarot-view" style="display: none;">
@@ -450,6 +456,18 @@ export function setup(ctx: SpindleFrontendContext) {
     })
   })
 
+  // --- Clear History Buttons ---
+  const clearCurrentBtn = tab.root.querySelector('#tarot-clear-current-btn') as HTMLButtonElement
+  const clearAllBtn = tab.root.querySelector('#tarot-clear-all-btn') as HTMLButtonElement
+  
+  clearCurrentBtn.addEventListener('click', () => {
+    ctx.sendToBackend({ type: 'clear_history_current' })
+  })
+  
+  clearAllBtn.addEventListener('click', () => {
+    ctx.sendToBackend({ type: 'clear_history_all' })
+  })
+  
   return () => {
     unsub()
     removeStyle()
