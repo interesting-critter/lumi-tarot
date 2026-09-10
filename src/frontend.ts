@@ -46,7 +46,11 @@ export function setup(ctx: SpindleFrontendContext) {
     .tarot-spread-7 { grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(4, auto); justify-items: center; }
     .s7-0 { grid-area: 4 / 1; } .s7-1 { grid-area: 3 / 1; } .s7-2 { grid-area: 2 / 1; } .s7-3 { grid-area: 1 / 2; } .s7-4 { grid-area: 2 / 3; } .s7-5 { grid-area: 3 / 3; } .s7-6 { grid-area: 4 / 3; }
     .tarot-spread-10 { grid-template-columns: repeat(4, 1fr); grid-template-rows: repeat(5, auto); justify-items: center; align-items: center; }
-    .s10-0 { grid-area: 3 / 2; z-index: 1; } .s10-1 { grid-area: 4 / 2; transform: rotate(90deg); z-index: 2; } .s10-2 { grid-area: 5 / 2; } .s10-3 { grid-area: 3 / 1; } .s10-4 { grid-area: 2 / 2; } .s10-5 { grid-area: 3 / 3; } .s10-6 { grid-area: 5 / 4; } .s10-7 { grid-area: 4 / 4; } .s10-8 { grid-area: 3 / 4; } .s10-9 { grid-area: 2 / 4; }
+    .s10-0 { grid-area: 3 / 2; z-index: 1; } .s10-1 { grid-area: 4 / 2; z-index: 2; } .s10-2 { grid-area: 5 / 2; } .s10-3 { grid-area: 3 / 1; } .s10-4 { grid-area: 2 / 2; } .s10-5 { grid-area: 3 / 3; } .s10-6 { grid-area: 5 / 4; } .s10-7 { grid-area: 4 / 4; } .s10-8 { grid-area: 3 / 4; } .s10-9 { grid-area: 2 / 4; }
+    .s10-1 .tarot-card-img { transform: rotate(90deg); }
+    .s10-1 .tarot-card-img.inverted { transform: rotate(270deg); }
+    .s10-1 .tarot-card-img:hover { transform: rotate(90deg) scale(1.05); }
+    .s10-1 .tarot-card-img.inverted:hover { transform: rotate(270deg) scale(1.05); }
   `)
 
   const tab = ctx.ui.registerDrawerTab({
