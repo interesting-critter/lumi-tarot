@@ -76,7 +76,8 @@ spindle.onFrontendMessage(async (payload: any, userId) => {
       const idx = Math.floor(Math.random() * available.length)
       const cardId = available.splice(idx, 1)[0]
       const inverted = Math.random() < 0.5
-      drawnCards.push({ id: cardId, inverted })
+      const cardData = TAROT_DECK.find(c => c.id === cardId)
+      drawnCards.push({ id: cardId, inverted, name: cardData?.name || 'Unknown' })
     }
     
     // Save reading state with empty interpretations array
