@@ -279,6 +279,29 @@ spindle.onFrontendMessage(async (payload: any, userId) => {
     const history = await spindle.userStorage.getJson<any[]>(`history/${chatId}.json`, { fallback: [], userId })
     spindle.sendToFrontend({ type: 'history_data', history }, userId)
   }
+
+  if (payload.type === 'clear_history_current') {
+    const activeChat = await spindle.chats.getActive(userId)
+    const chatId = activeChat?.id || 'global'
+    try {
+      await spindle.userStorage.delete(`history/${chatId}.json`, userId)
+      spindle.toast.success('Cleared history for this chat.')
+    } catch (err) {
+      // Ignore error if file doesn't exist
+    }
+  }
+
+  if (payload.type === 'clear_history_all') {
+    try {
+      const files = await spindle.userStorage.list('history/', userId)
+      for (const file of files) {
+        await spindle.userStorage.delete(file, userId)
+      }
+      spindle.toast.success('Cleared all reading history.')
+    } catch (err) {
+      spindle.toast.error('Failed to clear all history.')
+    }
+  }
 })
 
 spindle.log.info('Tarot Reader backend loaded.')
