@@ -14,7 +14,7 @@ async function ensureAssetsSeeded(userId: string) {
   }
 
   spindle.log.info('Tarot Reader: Seeding 79 tarot images...')
-  const uploadItems = []
+  const uploadItems: Array<{ data: Uint8Array; filename: string; mime_type: string }> = []
   for (let i = 0; i <= 78; i++) {
     const filename = `${i.toString().padStart(2, '0')}.jpg`
     try {
@@ -35,7 +35,17 @@ async function ensureAssetsSeeded(userId: string) {
   spindle.log.info('Tarot Reader: Successfully seeded and cached all images.')
 }
 
-spindle.onFrontendMessage(async (payload: any, userId) => {
+spindle.onFrontendMessage((payload: any, userId: string) => {
+  // Never let a rejected promise escape the handler: the host treats an
+  // unhandled rejection as a fatal worker error and the whole extension
+  // runtime exits (code=1).
+  handleFrontendMessage(payload, userId).catch((err: any) => {
+    spindle.log.error(`Tarot Reader: Unhandled error - ${err?.message || err}`)
+    spindle.toast.error(`Tarot Reader error: ${err?.message || String(err)}`)
+  })
+})
+
+async function handleFrontendMessage(payload: any, userId: string) {
   if (payload.type === 'init') {
     if (Object.keys(cachedImageUrls).length === 0) await ensureAssetsSeeded(userId)
 
@@ -123,8 +133,7 @@ spindle.onFrontendMessage(async (payload: any, userId) => {
 
     let historyText = ""
     if (activeChat) {
-      const messages = await spindle.chat.getMessages(activeChat.id, userId)
-      const recent = messages.slice(-5)
+      const recent = await spindle.chat.getMessages(activeChat.id, { tail: 5 })
       historyText = recent.map(m => `${m.role === 'user' ? 'User' : readerCharacter?.name || 'Assistant'}: ${m.content}`).join('\n')
     }
 
@@ -302,6 +311,6 @@ spindle.onFrontendMessage(async (payload: any, userId) => {
       spindle.toast.error('Failed to clear all history.')
     }
   }
-})
+}
 
 spindle.log.info('Tarot Reader backend loaded.')

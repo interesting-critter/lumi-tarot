@@ -394,7 +394,7 @@ export function setup(ctx: SpindleFrontendContext) {
     flipBtn.addEventListener('click', () => { if (!isStreaming) flipCard(nextUnread) })
     autoCheck.addEventListener('change', (e) => {
       autoAdvance = (e.target as HTMLInputElement).checked
-      if (autoAdvance && !isStreaming && readIndices.size < currentDraw.cards.length) {
+      if (autoAdvance && !isStreaming && currentDraw && readIndices.size < currentDraw.cards.length) {
         flipCard(nextUnread)
       }
     })
