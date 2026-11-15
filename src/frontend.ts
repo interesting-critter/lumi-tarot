@@ -51,6 +51,28 @@ export function setup(ctx: SpindleFrontendContext) {
     .s10-1 .tarot-card-img.inverted { transform: rotate(270deg); }
     .s10-1 .tarot-card-img:hover { transform: rotate(90deg) scale(1.05); }
     .s10-1 .tarot-card-img.inverted:hover { transform: rotate(270deg) scale(1.05); }
+
+    .tarot-deck-list { display: flex; flex-direction: column; gap: 8px; }
+    .tarot-deck-row { display: flex; align-items: center; gap: 10px; padding: 8px; border: 1px solid var(--lumiverse-border); border-radius: var(--lumiverse-radius); background: var(--lumiverse-fill); }
+    .tarot-deck-row.tarot-deck-active { border-color: var(--lumiverse-accent); }
+    .tarot-deck-thumb { width: 34px; height: 52px; border-radius: 4px; object-fit: cover; background: var(--lumiverse-fill-subtle); border: 1px solid var(--lumiverse-border); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; color: var(--lumiverse-text-muted); flex: 0 0 auto; }
+    .tarot-deck-meta { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+    .tarot-deck-name { font-size: 13px; font-weight: 600; color: var(--lumiverse-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .tarot-deck-sub { font-size: 11px; color: var(--lumiverse-text-muted); }
+    .tarot-deck-active-badge { font-size: 9px; color: var(--lumiverse-accent); border: 1px solid var(--lumiverse-accent); border-radius: 3px; padding: 1px 4px; margin-left: 6px; vertical-align: middle; }
+    .tarot-deck-actions { display: flex; gap: 6px; flex: 0 0 auto; flex-wrap: wrap; justify-content: flex-end; }
+    .tarot-deck-btn { padding: 4px 10px; font-size: 11px; background: var(--lumiverse-fill-subtle); color: var(--lumiverse-text); border: 1px solid var(--lumiverse-border); border-radius: 4px; cursor: pointer; }
+    .tarot-deck-btn:hover { border-color: var(--lumiverse-accent); color: var(--lumiverse-accent); }
+    .tarot-deck-btn.danger:hover { border-color: var(--lumiverse-danger); color: var(--lumiverse-danger); }
+    .tarot-deck-create { display: flex; gap: 8px; align-items: center; margin-top: 8px; }
+    .tarot-deck-create > div { flex: 1 1 auto; min-width: 0; }
+    .tarot-import-step { font-size: 15px; font-weight: 700; color: var(--lumiverse-text); }
+    .tarot-import-slug { font-size: 12px; color: var(--lumiverse-text-muted); margin: 2px 0 8px 0; font-family: monospace; word-break: break-all; }
+    .tarot-progress { width: 100%; height: 8px; background: var(--lumiverse-fill); border-radius: 4px; overflow: hidden; border: 1px solid var(--lumiverse-border); }
+    .tarot-progress-fill { height: 100%; background: var(--lumiverse-accent); width: 0%; transition: width 0.2s; }
+    .tarot-import-error { color: var(--lumiverse-danger); font-size: 12px; margin-top: 6px; }
+    .tarot-deck-name-input { font-size: 13px; }
+    .tarot-card-img.tarot-card-missing { background: var(--lumiverse-fill); border: 1px dashed var(--lumiverse-border); }
   `)
 
   const tab = ctx.ui.registerDrawerTab({
@@ -108,6 +130,24 @@ export function setup(ctx: SpindleFrontendContext) {
           <button class="tarot-btn" id="tarot-clear-current-btn" style="background: var(--lumiverse-danger); color: white;">Clear Current Chat's Reading History</button>
           <button class="tarot-btn" id="tarot-clear-all-btn" style="background: var(--lumiverse-danger); color: white;">Clear ALL Chats' Reading History</button>
         </div>
+
+        <div class="tarot-section" style="margin-top: 16px;">
+          <div class="tarot-label">Custom Decks</div>
+          <div id="tarot-deck-list" class="tarot-deck-list"></div>
+          <div id="tarot-create-deck-row" class="tarot-deck-create">
+            <div id="tarot-new-deck-name-slot"></div>
+            <button class="tarot-btn" id="tarot-create-deck-btn" style="width: auto; padding: 8px 14px;">Create Deck</button>
+          </div>
+          <div id="tarot-import-panel" style="display: none;">
+            <div class="tarot-label" id="tarot-import-title">Importing Deck</div>
+            <div class="tarot-import-step" id="tarot-import-step"></div>
+            <div class="tarot-import-slug" id="tarot-import-slug"></div>
+            <div class="tarot-progress"><div class="tarot-progress-fill" id="tarot-import-fill"></div></div>
+            <div id="tarot-import-error" class="tarot-import-error" style="display:none;"></div>
+            <button class="tarot-btn" id="tarot-pick-card-btn" style="margin-top: 8px;">Choose Card Image…</button>
+            <button class="tarot-reread-btn" id="tarot-import-exit-btn">Save &amp; Exit</button>
+          </div>
+        </div>
       </div>
 
       <div id="tarot-history-view" class="tarot-view" style="display: none;">
@@ -138,18 +178,46 @@ export function setup(ctx: SpindleFrontendContext) {
   const connSlot = tab.root.querySelector('#tarot-conn-slot') as HTMLElement
   const saveBtn = tab.root.querySelector('#tarot-save-btn') as HTMLButtonElement
 
+  const deckList = tab.root.querySelector('#tarot-deck-list') as HTMLElement
+  const createDeckRow = tab.root.querySelector('#tarot-create-deck-row') as HTMLElement
+  const createDeckBtn = tab.root.querySelector('#tarot-create-deck-btn') as HTMLButtonElement
+  const newDeckNameSlot = tab.root.querySelector('#tarot-new-deck-name-slot') as HTMLElement
+  const importPanel = tab.root.querySelector('#tarot-import-panel') as HTMLElement
+  const importTitle = tab.root.querySelector('#tarot-import-title') as HTMLElement
+  const importStep = tab.root.querySelector('#tarot-import-step') as HTMLElement
+  const importSlug = tab.root.querySelector('#tarot-import-slug') as HTMLElement
+  const importFill = tab.root.querySelector('#tarot-import-fill') as HTMLElement
+  const importError = tab.root.querySelector('#tarot-import-error') as HTMLElement
+  const pickCardBtn = tab.root.querySelector('#tarot-pick-card-btn') as HTMLButtonElement
+  const importExitBtn = tab.root.querySelector('#tarot-import-exit-btn') as HTMLButtonElement
+
   // --- State ---
   let currentSettings = { systemPrompt: '', connectionId: '' }
   let sysPromptHandle: any = null
   let connHandle: any = null
   let readerSelectHandle: any = null
-  let imageUrls: Record<number, string> = {}
-  let currentDraw: { cards: any[], positions: string[] } | null = null
+  let newDeckNameHandle: any = null
+  let imageUrls: Record<string, string> = {}
+  let currentDraw: { cards: any[], positions: string[], imageUrls?: Record<string, string> } | null = null
   let readerCharacterId: string = ''
   let readIndices: Set<number> = new Set()
   let isStreaming = false
   let autoAdvance = false
   let synthesisStarted = false
+  let decks: any[] = []
+  let activeDeckId = 'default'
+  let newDeckName = ''
+  let importState: { deckId: string | null, nextIndex: number } | null = null
+  let deckListMode: { renameId?: string } = {}
+  let activateDeckBtn: HTMLButtonElement | null = null
+  let pendingActivation = false
+  let importInFlight = false
+
+  // --- Mount New Deck Name Input (once; kept for teardown) ---
+  newDeckNameHandle = ctx.components.mountTextInput(newDeckNameSlot, {
+    placeholder: 'New deck name (e.g. Golden Tarot)',
+    onChange: (v: string) => { newDeckName = v }
+  })
 
   // --- Navigation Router ---
   navBtns.forEach(btn => {
@@ -162,6 +230,7 @@ export function setup(ctx: SpindleFrontendContext) {
       historyView.style.display = view === 'history' ? 'block' : 'none'
       
       if (view === 'history') ctx.sendToBackend({ type: 'load_history' })
+      if (view === 'settings') ctx.sendToBackend({ type: 'list_decks' })
     })
   })
 
@@ -170,8 +239,10 @@ export function setup(ctx: SpindleFrontendContext) {
 
   const unsub = ctx.onBackendMessage((payload: any) => {
     if (payload.type === 'init_data') {
-      imageUrls = payload.imageUrls
+      imageUrls = payload.imageUrls || imageUrls
       currentSettings = payload.settings
+      decks = payload.decks ?? []
+      activeDeckId = payload.activeDeckId ?? 'default'
 
       if (readerSelectHandle) readerSelectHandle.destroy()
       readerSelectHandle = ctx.components.mountSelect(readerSelectSlot, {
@@ -194,10 +265,12 @@ export function setup(ctx: SpindleFrontendContext) {
         options: payload.connections.map((c: any) => ({ value: c.id, label: c.name || c.id, group: c.provider })),
         onChange: (val: string) => { currentSettings.connectionId = val }
       })
+
+      renderDeckSection()
     }
     
     if (payload.type === 'draw_result') {
-      currentDraw = payload
+      currentDraw = { cards: payload.cards, positions: payload.positions, imageUrls: { ...imageUrls } }
       readIndices = new Set()
       synthesisStarted = false
       synthesisArea.style.display = 'none'
@@ -301,30 +374,123 @@ export function setup(ctx: SpindleFrontendContext) {
     }
 
     if (payload.type === 'history_data') {
-      if (payload.history.length === 0) {
-        historyList.innerHTML = '<div style="color: var(--lumiverse-text-muted); font-size: 13px;">No readings saved for this chat yet.</div>'
+      historyList.replaceChildren()
+      const history = Array.isArray(payload.history) ? payload.history : []
+      if (history.length === 0) {
+        const empty = document.createElement('div')
+        empty.style.color = 'var(--lumiverse-text-muted)'
+        empty.style.fontSize = '13px'
+        empty.textContent = 'No readings saved for this chat yet.'
+        historyList.appendChild(empty)
         return
       }
-      historyList.innerHTML = payload.history.map((r: any) => `
-        <div class="tarot-history-item">
-          <div class="tarot-history-meta">
-            <strong>${new Date(r.timestamp).toLocaleString()}</strong> | ${r.spreadType}-Card Spread
-            ${r.question ? `<br><em>Q: ${r.question}</em>` : ''}
-          </div>
-          <div style="display: flex; flex-direction: column; gap: 8px; margin: 12px 0;">
-            ${r.cards.map((c: any) => `
-              <div>
-                <strong>${c.name} ${c.inverted ? '(Inverted)' : ''}</strong>
-                <div style="font-size: 11px; color: var(--lumiverse-text-muted); white-space: pre-wrap;">${c.interpretation || ''}</div>
-              </div>
-            `).join('')}
-          </div>
-          <div style="margin-top: 12px; border-top: 1px solid var(--lumiverse-border); padding-top: 8px;">
-            <strong>Synthesis:</strong>
-            <div style="font-size: 12px; color: var(--lumiverse-text); white-space: pre-wrap;">${r.synthesis || ''}</div>
-          </div>
-        </div>
-      `).join('')
+      const knownSpreads = ['1', '3', '5', '7', '10']
+      for (const r of history) {
+        if (!r || typeof r !== 'object') continue
+
+        const item = document.createElement('div')
+        item.className = 'tarot-history-item'
+
+        const meta = document.createElement('div')
+        meta.className = 'tarot-history-meta'
+        const date = new Date(r.timestamp)
+        const dateStrong = document.createElement('strong')
+        dateStrong.textContent = Number.isNaN(date.getTime()) ? 'Unknown date' : date.toLocaleString()
+        meta.appendChild(dateStrong)
+        const rawSpread = String(r.spreadType ?? '')
+        const spreadText = knownSpreads.includes(rawSpread) ? `${rawSpread}-Card Spread` : rawSpread
+        meta.appendChild(document.createTextNode(` | ${spreadText}`))
+        if (r.question) {
+          meta.appendChild(document.createElement('br'))
+          const question = document.createElement('em')
+          question.textContent = `Q: ${r.question}`
+          meta.appendChild(question)
+        }
+        item.appendChild(meta)
+
+        const cardsWrap = document.createElement('div')
+        cardsWrap.style.display = 'flex'
+        cardsWrap.style.flexDirection = 'column'
+        cardsWrap.style.gap = '8px'
+        cardsWrap.style.margin = '12px 0'
+        const cards = Array.isArray(r.cards) ? r.cards : []
+        for (const c of cards) {
+          const cardDiv = document.createElement('div')
+          const nameStrong = document.createElement('strong')
+          const cardName = typeof c?.name === 'string' ? c.name : ''
+          nameStrong.textContent = `${cardName}${c?.inverted ? ' (Inverted)' : ''}`
+          cardDiv.appendChild(nameStrong)
+          const interp = document.createElement('div')
+          interp.style.fontSize = '11px'
+          interp.style.color = 'var(--lumiverse-text-muted)'
+          interp.style.whiteSpace = 'pre-wrap'
+          interp.textContent = typeof c?.interpretation === 'string' ? c.interpretation : ''
+          cardDiv.appendChild(interp)
+          cardsWrap.appendChild(cardDiv)
+        }
+        item.appendChild(cardsWrap)
+
+        const synthWrap = document.createElement('div')
+        synthWrap.style.marginTop = '12px'
+        synthWrap.style.borderTop = '1px solid var(--lumiverse-border)'
+        synthWrap.style.paddingTop = '8px'
+        const synthStrong = document.createElement('strong')
+        synthStrong.textContent = 'Synthesis:'
+        synthWrap.appendChild(synthStrong)
+        const synthDiv = document.createElement('div')
+        synthDiv.style.fontSize = '12px'
+        synthDiv.style.color = 'var(--lumiverse-text)'
+        synthDiv.style.whiteSpace = 'pre-wrap'
+        synthDiv.textContent = typeof r.synthesis === 'string' ? r.synthesis : ''
+        synthWrap.appendChild(synthDiv)
+        item.appendChild(synthWrap)
+
+        historyList.appendChild(item)
+      }
+    }
+
+    if (payload.type === 'decks_data') {
+      decks = payload.decks ?? []
+      activeDeckId = payload.activeDeckId ?? 'default'
+      if (payload.imageUrls) imageUrls = payload.imageUrls
+      if (pendingActivation) {
+        pendingActivation = false
+        importState = null
+      } else if (importState) {
+        const found = decks.some(d => d && String(d.id) === String(importState!.deckId))
+        if (!found) importState = null
+      }
+      renderDeckSection()
+      if (importState) renderImportPanel()
+    }
+
+    if (payload.type === 'deck_import_started') {
+      importState = { deckId: payload.deckId, nextIndex: payload.nextIndex ?? 0 }
+      clearImportError()
+      renderDeckSection()
+    }
+
+    if (payload.type === 'import_progress') {
+      importInFlight = false
+      pickCardBtn.disabled = false
+      pickCardBtn.textContent = 'Choose Card Image…'
+      if (importState) {
+        const nextIndex = payload.complete ? 79 : (payload.nextIndex ?? importState.nextIndex)
+        importState = { deckId: payload.deckId ?? importState.deckId, nextIndex }
+      }
+      renderDeckSection()
+      if (importState) renderImportPanel()
+    }
+
+    if (payload.type === 'import_error') {
+      importInFlight = false
+      pickCardBtn.disabled = false
+      pickCardBtn.textContent = 'Choose Card Image…'
+      showImportError(payload.message || 'Failed to import card image.')
+    }
+
+    if (payload.type === 'image_urls_update') {
+      imageUrls = payload.imageUrls || imageUrls
     }
   })
 
@@ -350,12 +516,14 @@ export function setup(ctx: SpindleFrontendContext) {
     else if (count === 5) { gridClass = 'tarot-spread-5'; cardClasses = ['s5-0', 's5-1', 's5-2', 's5-3', 's5-4'] }
     else if (count === 7) { gridClass = 'tarot-spread-7'; cardClasses = ['s7-0', 's7-1', 's7-2', 's7-3', 's7-4', 's7-5', 's7-6'] }
     else if (count === 10) { gridClass = 'tarot-spread-10'; cardClasses = ['s10-0', 's10-1', 's10-2', 's10-3', 's10-4', 's10-5', 's10-6', 's10-7', 's10-8', 's10-9'] }
+
+    const cardBackSrc = currentDraw.imageUrls?.['78']
     
     cardsArea.innerHTML = `
       <div class="tarot-spread-grid ${gridClass}">
         ${cards.map((card, i) => `
           <div class="tarot-card-slot ${cardClasses[i] || ''}" data-index="${i}">
-            <img src="${imageUrls[78]}" class="tarot-card-img" data-index="${i}" />
+            <img alt=""${cardBackSrc ? ` src="${cardBackSrc}"` : ''} class="tarot-card-img${cardBackSrc ? '' : ' tarot-card-missing'}" data-index="${i}" />
             <div class="tarot-card-pos">${positions[i]}</div>
             <div class="tarot-card-name" data-index="${i}"></div>
           </div>
@@ -407,7 +575,10 @@ export function setup(ctx: SpindleFrontendContext) {
     const card = currentDraw.cards[index]
     const img = cardsArea.querySelector(`.tarot-card-img[data-index="${index}"]`) as HTMLImageElement
     if (img) {
-      img.src = imageUrls[card.id]
+      const faceSrc = currentDraw.imageUrls?.[String(card.id)] ?? ''
+      if (faceSrc) img.src = faceSrc
+      else img.removeAttribute('src')
+      img.classList.toggle('tarot-card-missing', !faceSrc)
       if (card.inverted) img.classList.add('inverted')
     }
     
@@ -447,6 +618,283 @@ export function setup(ctx: SpindleFrontendContext) {
     ctx.sendToBackend({ type: 'synthesize' })
   })
 
+  // --- Custom Decks ---
+  function uint8ToBase64(bytes: Uint8Array): string {
+    let s = ''
+    const CHUNK = 0x8000
+    for (let i = 0; i < bytes.length; i += CHUNK) {
+      s += String.fromCharCode(...bytes.subarray(i, i + CHUNK))
+    }
+    return btoa(s)
+  }
+
+  function showImportError(message: string) {
+    importError.textContent = message
+    importError.style.display = 'block'
+  }
+
+  function clearImportError() {
+    importError.textContent = ''
+    importError.style.display = 'none'
+  }
+
+  function deckInitials(name: string): string {
+    const words = String(name || '').trim().split(/\s+/).filter(Boolean)
+    if (words.length === 0) return '?'
+    return words.slice(0, 2).map(w => w[0].toUpperCase()).join('')
+  }
+
+  function renderDeckSection() {
+    const importing = !!importState
+    deckList.style.display = importing ? 'none' : ''
+    createDeckRow.style.display = importing ? 'none' : ''
+    importPanel.style.display = importing ? 'block' : 'none'
+    renderImportPanel()
+
+    if (importing) return
+
+    deckList.innerHTML = ''
+
+    const rows: Array<{ id: string, name: string, isDefault: boolean, importedCount: number, complete: boolean, isActive: boolean }> = [
+      { id: 'default', name: 'Default (Rider–Waite)', isDefault: true, importedCount: 79, complete: true, isActive: activeDeckId === 'default' }
+    ]
+    for (const deck of decks) {
+      if (!deck) continue
+      rows.push({
+        id: String(deck.id),
+        name: deck.name ?? 'Untitled Deck',
+        isDefault: false,
+        importedCount: deck.importedCount ?? 0,
+        complete: !!deck.complete,
+        isActive: String(activeDeckId) === String(deck.id)
+      })
+    }
+
+    for (const rowData of rows) {
+      deckList.appendChild(buildDeckRow(rowData))
+    }
+
+    if (deckListMode.renameId) {
+      const input = deckList.querySelector('.tarot-deck-name-input') as HTMLInputElement | null
+      if (input) { input.focus(); input.select() }
+    }
+  }
+
+  function buildDeckRow(rowData: { id: string, name: string, isDefault: boolean, importedCount: number, complete: boolean, isActive: boolean }): HTMLElement {
+    const renaming = deckListMode.renameId === rowData.id
+    const row = document.createElement('div')
+    row.className = 'tarot-deck-row' + (rowData.isActive ? ' tarot-deck-active' : '')
+
+    const thumb = document.createElement('div')
+    thumb.className = 'tarot-deck-thumb'
+    thumb.textContent = rowData.isDefault ? 'RW' : deckInitials(rowData.name)
+    row.appendChild(thumb)
+
+    const meta = document.createElement('div')
+    meta.className = 'tarot-deck-meta'
+
+    if (renaming) {
+      const input = document.createElement('input')
+      input.className = 'tarot-input tarot-deck-name-input'
+      input.type = 'text'
+      input.maxLength = 64
+      input.value = rowData.name
+      meta.appendChild(input)
+    } else {
+      const nameDiv = document.createElement('div')
+      nameDiv.className = 'tarot-deck-name'
+      nameDiv.textContent = rowData.name
+      if (rowData.isActive) {
+        const badge = document.createElement('span')
+        badge.className = 'tarot-deck-active-badge'
+        badge.textContent = 'ACTIVE'
+        nameDiv.appendChild(badge)
+      }
+      const subDiv = document.createElement('div')
+      subDiv.className = 'tarot-deck-sub'
+      if (rowData.isDefault) subDiv.textContent = 'Included with LumiTarot'
+      else if (rowData.complete) subDiv.textContent = 'Complete · 79 cards'
+      else subDiv.textContent = `${rowData.importedCount}/79 imported — ${Math.max(0, 79 - rowData.importedCount)} remaining`
+      meta.appendChild(nameDiv)
+      meta.appendChild(subDiv)
+    }
+    row.appendChild(meta)
+
+    const actions = document.createElement('div')
+    actions.className = 'tarot-deck-actions'
+
+    const mkBtn = (label: string, className: string, onClick: () => void) => {
+      const b = document.createElement('button')
+      b.className = className
+      b.textContent = label
+      b.addEventListener('click', onClick)
+      actions.appendChild(b)
+      return b
+    }
+
+    if (renaming) {
+      const input = meta.querySelector('.tarot-deck-name-input') as HTMLInputElement
+      const saveRename = () => {
+        const name = (input?.value ?? '').trim()
+        if (name.length >= 1 && name.length <= 64) {
+          ctx.sendToBackend({ type: 'rename_deck', deckId: rowData.id, name })
+        }
+        deckListMode = {}
+        renderDeckSection()
+      }
+      mkBtn('Save', 'tarot-deck-btn', saveRename)
+      mkBtn('Cancel', 'tarot-deck-btn', () => { deckListMode = {}; renderDeckSection() })
+      input.addEventListener('keydown', (e: KeyboardEvent) => {
+        if (e.key === 'Enter') { e.preventDefault(); saveRename() }
+        else if (e.key === 'Escape') { deckListMode = {}; renderDeckSection() }
+      })
+    } else {
+      if (!rowData.complete && !rowData.isDefault) {
+        mkBtn('Resume Import', 'tarot-deck-btn', () => {
+          importState = { deckId: rowData.id, nextIndex: rowData.importedCount }
+          clearImportError()
+          renderDeckSection()
+        })
+      } else if (rowData.complete && !rowData.isActive) {
+        mkBtn('Use', 'tarot-deck-btn', () => ctx.sendToBackend({ type: 'set_active_deck', deckId: rowData.id }))
+      }
+      if (!rowData.isDefault) {
+        mkBtn('Rename', 'tarot-deck-btn', () => { deckListMode = { renameId: rowData.id }; renderDeckSection() })
+        mkBtn('Delete', 'tarot-deck-btn danger', async () => {
+          const { confirmed } = await ctx.ui.showConfirm({
+            title: 'Delete Deck',
+            message: `Delete "${rowData.name}"? All imported images will be permanently removed. If it's used by your current reading, unflipped cards will lose their artwork.`,
+            variant: 'danger',
+            confirmLabel: 'Delete'
+          })
+          if (confirmed) ctx.sendToBackend({ type: 'delete_deck', deckId: rowData.id })
+        })
+      }
+    }
+
+    row.appendChild(actions)
+    return row
+  }
+
+  function ensureActivateButton(): HTMLButtonElement {
+    if (activateDeckBtn) return activateDeckBtn
+    activateDeckBtn = document.createElement('button')
+    activateDeckBtn.id = 'tarot-activate-deck-btn'
+    activateDeckBtn.className = 'tarot-btn'
+    activateDeckBtn.style.marginTop = '8px'
+    activateDeckBtn.textContent = 'Activate Deck'
+    activateDeckBtn.addEventListener('click', () => {
+      if (!importState) return
+      pendingActivation = true
+      ctx.sendToBackend({ type: 'set_active_deck', deckId: importState.deckId })
+    })
+    importPanel.appendChild(activateDeckBtn)
+    return activateDeckBtn
+  }
+
+  function renderImportPanel() {
+    if (!importState) {
+      importPanel.style.display = 'none'
+      return
+    }
+    importPanel.style.display = 'block'
+
+    const deck = decks.find(d => d && String(d.id) === String(importState!.deckId)) ?? null
+    if (!deck) {
+      // deck_import_started can arrive before the matching decks_data;
+      // show a holding state until the next decks_data refreshes `decks`
+      // (the decks_data handler clears importState if the deck is truly missing).
+      importTitle.textContent = 'Preparing Deck…'
+      importStep.textContent = ''
+      importSlug.textContent = ''
+      importFill.style.width = '0%'
+      pickCardBtn.style.display = 'none'
+      clearImportError()
+      if (activateDeckBtn) activateDeckBtn.style.display = 'none'
+      return
+    }
+
+    const nextIndex = importState.nextIndex
+    const isComplete = nextIndex >= 79 || !!deck.complete
+
+    if (isComplete) {
+      importTitle.textContent = 'Deck Complete ✓'
+      importStep.textContent = '79 of 79 — your deck is ready'
+      importSlug.textContent = ''
+      importFill.style.width = '100%'
+      pickCardBtn.style.display = 'none'
+      clearImportError()
+      ensureActivateButton().style.display = 'block'
+      return
+    }
+
+    importTitle.textContent = `Importing: ${deck.name ?? 'Deck'}`
+    importStep.textContent = `Card ${nextIndex + 1} of 79`
+    importSlug.textContent = (deck.nextCardName && deck.nextSlug) ? `${deck.nextCardName} · ${deck.nextSlug}` : ''
+    importFill.style.width = `${Math.min(100, (nextIndex / 79) * 100)}%`
+    pickCardBtn.style.display = 'block'
+    if (activateDeckBtn) activateDeckBtn.style.display = 'none'
+  }
+
+  createDeckBtn.addEventListener('click', () => {
+    const name = newDeckName.trim()
+    if (name.length < 1 || name.length > 64) {
+      const input = newDeckNameSlot.querySelector('input, textarea') as HTMLElement | null
+      const el = input ?? newDeckNameSlot
+      const prevBorder = el.style.borderColor
+      el.style.borderColor = 'var(--lumiverse-danger)'
+      el.style.boxShadow = '0 0 0 1px var(--lumiverse-danger)'
+      window.setTimeout(() => { el.style.borderColor = prevBorder; el.style.boxShadow = '' }, 900)
+      return
+    }
+    ctx.sendToBackend({ type: 'create_deck', name })
+    newDeckName = ''
+    if (newDeckNameHandle && typeof newDeckNameHandle.update === 'function') {
+      newDeckNameHandle.update({ value: '' })
+    }
+  })
+
+  pickCardBtn.addEventListener('click', async () => {
+    if (!importState) return
+    let files: any[] | null = null
+    try {
+      files = await ctx.uploads.pickFile({ accept: ['image/jpeg', 'image/png', 'image/webp'], multiple: false, maxSizeBytes: 2_500_000 })
+    } catch (err: any) {
+      showImportError(err?.message || 'Could not select the file (it may exceed the 2.5 MB limit).')
+      return
+    }
+    const file = files?.[0]
+    if (!file) return
+    if (!file?.bytes || file.bytes.length > 2_500_000) {
+      showImportError('Image exceeds the 2.5 MB limit. Use a smaller JPEG (≈1000px).')
+      return
+    }
+    let base64: string
+    try {
+      base64 = uint8ToBase64(file.bytes)
+    } catch (err: any) {
+      showImportError(err?.message || 'Could not read the selected file.')
+      return
+    }
+    clearImportError()
+    importInFlight = true
+    pickCardBtn.disabled = true
+    pickCardBtn.textContent = 'Importing…'
+    ctx.sendToBackend({
+      type: 'import_deck_card',
+      deckId: importState.deckId,
+      cardIndex: importState.nextIndex,
+      mimeType: file.mimeType || 'image/jpeg',
+      dataBase64: base64
+    })
+  })
+
+  importExitBtn.addEventListener('click', () => {
+    importState = null
+    clearImportError()
+    renderDeckSection()
+  })
+
   // --- Save Settings ---
   saveBtn.addEventListener('click', () => {
     ctx.sendToBackend({
@@ -474,6 +922,7 @@ export function setup(ctx: SpindleFrontendContext) {
     if (sysPromptHandle) sysPromptHandle.destroy()
     if (connHandle) connHandle.destroy()
     if (readerSelectHandle) readerSelectHandle.destroy()
+    if (newDeckNameHandle) newDeckNameHandle.destroy()
     tab.destroy()
   }
 }

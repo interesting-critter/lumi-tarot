@@ -1,19 +1,33 @@
 declare const spindle: import('lumiverse-spindle-types').SpindleAPI
+// lumiverse-spindle-types ships no Node globals; Bun provides Buffer at runtime.
+declare const Buffer: {
+  from(data: string, encoding: 'base64'): Uint8Array
+}
 import { TAROT_DECK } from './tarot-data'
+import { registerTarotMacros } from './macros'
+import { TOTAL_CARDS, MAX_CARD_BYTES, MAX_B64_CHARS, MIME_EXT } from './deck-data'
+import { loadDecksState, saveDecksState, complete, findDeck, summaries, imageUrlsFor, isSafeId, type CustomDeck } from './decks'
 
-let cachedImageUrls: Record<number, string> = {}
+const imageUrlsByUser = new Map<string, Record<number, string>>()
 let currentReadings: Map<string, any> = new Map()
 
-async function ensureAssetsSeeded(userId: string) {
-  spindle.log.info('Tarot Reader: Checking assets...')
-  const storedUrls = await spindle.storage.getJson<Record<number, string> | null>('image_urls.json', { fallback: null })
+async function getDefaultImageUrls(userId: string): Promise<Record<number, string>> {
+  const cached = imageUrlsByUser.get(userId)
+  if (cached) return cached
+
+  let storedUrls: Record<number, string> | null = null
+  try {
+    storedUrls = await spindle.userStorage.getJson<Record<number, string> | null>('image_urls.json', { fallback: null, userId })
+  } catch (err: any) {
+    spindle.log.warn(`Tarot Reader: Failed to read image_urls.json - ${err?.message || err}. Treating the default deck as unseeded.`)
+  }
   if (storedUrls && Object.keys(storedUrls).length === 79) {
-    cachedImageUrls = storedUrls
-    spindle.log.info(`Tarot Reader: Loaded ${Object.keys(cachedImageUrls).length} cached image URLs.`)
-    return
+    imageUrlsByUser.set(userId, storedUrls)
+    spindle.log.info(`Tarot Reader: Loaded ${Object.keys(storedUrls).length} cached per-user default image URLs.`)
+    return storedUrls
   }
 
-  spindle.log.info('Tarot Reader: Seeding 79 tarot images...')
+  spindle.log.info('Tarot Reader: Seeding 79 tarot images for this user...')
   const uploadItems: Array<{ data: Uint8Array; filename: string; mime_type: string }> = []
   for (let i = 0; i <= 78; i++) {
     const filename = `${i.toString().padStart(2, '0')}.jpg`
@@ -23,16 +37,73 @@ async function ensureAssetsSeeded(userId: string) {
     } catch (err) { spindle.log.error(`Failed to read ${filename}.`) }
   }
 
-  const results = await spindle.images.uploadMany(uploadItems, { userId })
   const newUrls: Record<number, string> = {}
-  results.forEach((result, index) => {
-    const id = uploadItems[index].filename.split('.')[0]
-    if (result.id) newUrls[Number(id)] = `/api/v1/images/${result.id}?size=lg`
-  })
+  if (uploadItems.length > 0) {
+    try {
+      const results = await spindle.images.uploadMany(uploadItems, { userId })
+      results.forEach((result, index) => {
+        const id = uploadItems[index].filename.split('.')[0]
+        if (result.id) newUrls[Number(id)] = `/api/v1/images/${result.id}?size=lg`
+        else spindle.log.error(`Tarot Reader: Failed to upload ${uploadItems[index].filename} - ${result.error || 'unknown error'}`)
+      })
+    } catch (err: any) {
+      spindle.log.error(`Tarot Reader: Default image upload failed - ${err?.message || err}. Keeping a partial set of ${Object.keys(newUrls).length}/79 images for this session only; will re-seed on next load.`)
+      imageUrlsByUser.set(userId, newUrls)
+      return newUrls
+    }
+  }
 
-  cachedImageUrls = newUrls
-  await spindle.storage.setJson('image_urls.json', newUrls)
-  spindle.log.info('Tarot Reader: Successfully seeded and cached all images.')
+  imageUrlsByUser.set(userId, newUrls)
+  try {
+    await spindle.userStorage.setJson('image_urls.json', newUrls, { userId })
+  } catch (err: any) {
+    spindle.log.error(`Tarot Reader: Failed to persist image_urls.json - ${err?.message || err}. URLs will re-seed on next load.`)
+  }
+  if (Object.keys(newUrls).length === 79) {
+    spindle.log.info('Tarot Reader: Successfully seeded per-user default deck (79 images) and cached the URLs.')
+  } else {
+    spindle.log.error(`Tarot Reader: Per-user default deck seeding incomplete - ${Object.keys(newUrls).length}/79 images uploaded. Will retry on next load.`)
+  }
+  return newUrls
+}
+
+// Shared reset logic: falls back to the default deck when the persisted active
+// deck is missing or incomplete, and returns the active deck's image URLs.
+async function resolveActiveImageUrls(userId: string) {
+  try {
+    const defaultUrls = await getDefaultImageUrls(userId)
+    const state = await loadDecksState(userId)
+    let activeDeckId = state.activeDeckId
+    const activeDeck = activeDeckId !== 'default' ? findDeck(state, activeDeckId) : null
+    if (activeDeckId !== 'default' && (!activeDeck || !complete(activeDeck))) {
+      activeDeckId = 'default'
+      state.activeDeckId = 'default'
+      await saveDecksState(userId, state).catch((err: any) => {
+        spindle.log.error(`Tarot Reader: Failed to persist default-deck fallback - ${err?.message || err}`)
+      })
+      spindle.toast.warning('Selected deck was unavailable or incomplete; switched back to the default deck.')
+    }
+    const imageUrls = imageUrlsFor(state, activeDeckId, defaultUrls)
+    return { state, activeDeckId, imageUrls, defaultUrls }
+  } catch (err: any) {
+    spindle.log.error(`Tarot Reader: Failed to resolve active image URLs - ${err?.message || err}`)
+    return { state: { activeDeckId: 'default', decks: [] }, activeDeckId: 'default', imageUrls: {}, defaultUrls: {} }
+  }
+}
+
+async function sendDecksData(userId: string): Promise<void> {
+  const { state, activeDeckId, imageUrls } = await resolveActiveImageUrls(userId)
+  spindle.sendToFrontend({ type: 'decks_data', decks: summaries(state), activeDeckId, imageUrls }, userId)
+}
+
+function sendImportError(userId: string, deckId: string, cardIndex: number, message: string): void {
+  spindle.sendToFrontend({ type: 'import_error', deckId, cardIndex, message }, userId)
+}
+
+function bytesAscii(bytes: Uint8Array, start: number, end: number): string {
+  let out = ''
+  for (let i = start; i < end && i < bytes.length; i++) out += String.fromCharCode(bytes[i])
+  return out
 }
 
 spindle.onFrontendMessage((payload: any, userId: string) => {
@@ -47,7 +118,7 @@ spindle.onFrontendMessage((payload: any, userId: string) => {
 
 async function handleFrontendMessage(payload: any, userId: string) {
   if (payload.type === 'init') {
-    if (Object.keys(cachedImageUrls).length === 0) await ensureAssetsSeeded(userId)
+    const { state, activeDeckId, imageUrls } = await resolveActiveImageUrls(userId)
 
     const connections = await spindle.connections.list(userId)
     const activeChat = await spindle.chats.getActive(userId)
@@ -61,7 +132,7 @@ async function handleFrontendMessage(payload: any, userId: string) {
       }
     })
 
-    spindle.sendToFrontend({ type: 'init_data', imageUrls: cachedImageUrls, connections, characters, activeChatId: activeChat?.id || null, settings }, userId)
+    spindle.sendToFrontend({ type: 'init_data', imageUrls, connections, characters, activeChatId: activeChat?.id || null, settings, decks: summaries(state), activeDeckId }, userId)
   }
 
   if (payload.type === 'save_settings') {
@@ -263,6 +334,7 @@ async function handleFrontendMessage(payload: any, userId: string) {
         question: reading.question,
         spreadType: reading.spreadType,
         variant: reading.variant,
+        positions: reading.positions,
         cards: reading.cards.map((c: any, i: number) => ({ 
           id: c.id, 
           inverted: c.inverted, 
@@ -311,6 +383,211 @@ async function handleFrontendMessage(payload: any, userId: string) {
       spindle.toast.error('Failed to clear all history.')
     }
   }
+
+  if (payload.type === 'list_decks') {
+    await sendDecksData(userId)
+  }
+
+  if (payload.type === 'create_deck') {
+    const name = String(payload.name ?? '').trim()
+    if (name.length < 1 || name.length > 64) {
+      spindle.toast.error('Deck name must be 1–64 characters.')
+      await sendDecksData(userId)
+      return
+    }
+    const state = await loadDecksState(userId)
+    const deck: CustomDeck = { id: crypto.randomUUID(), name, createdAt: Date.now(), nextIndex: 0, cards: {} }
+    state.decks.push(deck)
+    await saveDecksState(userId, state)
+    spindle.sendToFrontend({ type: 'deck_import_started', deckId: deck.id, nextIndex: 0 }, userId)
+    await sendDecksData(userId)
+    spindle.toast.success(`Deck "${name}" created. Import card 1 of 79.`)
+  }
+
+  if (payload.type === 'import_deck_card') {
+    const { deckId, cardIndex, mimeType, dataBase64 } = payload
+    const safeDeckId = typeof deckId === 'string' ? deckId : ''
+    if (!isSafeId(safeDeckId)) {
+      const idx = Number(cardIndex)
+      sendImportError(userId, safeDeckId, Number.isFinite(idx) ? idx : -1, 'Invalid deck id.')
+      return
+    }
+    const state = await loadDecksState(userId)
+    const deck = findDeck(state, safeDeckId)
+    const idx = Number(cardIndex)
+    if (!deck) {
+      sendImportError(userId, typeof deckId === 'string' ? deckId : '', Number.isFinite(idx) ? idx : -1, 'Deck not found.')
+      return
+    }
+    if (!Number.isInteger(idx) || idx !== deck.nextIndex) {
+      const got = Number.isFinite(idx) ? idx : cardIndex
+      sendImportError(userId, deck.id, Number.isFinite(idx) ? idx : -1, `Expected card index ${deck.nextIndex}, got ${got}. Import cards one by one in order.`)
+      return
+    }
+    if (deck.nextIndex >= TOTAL_CARDS) {
+      sendImportError(userId, deck.id, idx, 'Deck is already complete.')
+      return
+    }
+    if (typeof dataBase64 !== 'string' || dataBase64.length > MAX_B64_CHARS) {
+      sendImportError(userId, deck.id, idx, 'Image exceeds 2.5MB limit. Use a smaller JPEG (≈1000px).')
+      return
+    }
+    const bytes = Buffer.from(dataBase64, 'base64')
+    if (bytes.length < 1 || bytes.length > MAX_CARD_BYTES) {
+      sendImportError(userId, deck.id, idx, 'Image exceeds 2.5MB limit. Use a smaller JPEG (≈1000px).')
+      return
+    }
+    if (typeof mimeType !== 'string' || !Object.prototype.hasOwnProperty.call(MIME_EXT, mimeType)) {
+      sendImportError(userId, deck.id, idx, 'Unsupported image type. Use JPEG, PNG or WebP.')
+      return
+    }
+    let magicOk = false
+    if (mimeType === 'image/jpeg') {
+      magicOk = bytes.length >= 3 && bytes[0] === 0xFF && bytes[1] === 0xD8 && bytes[2] === 0xFF
+    } else if (mimeType === 'image/png') {
+      magicOk = bytes.length >= 4 && bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4E && bytes[3] === 0x47
+    } else if (mimeType === 'image/webp') {
+      magicOk = bytes.length >= 12 && bytesAscii(bytes, 0, 4) === 'RIFF' && bytesAscii(bytes, 8, 12) === 'WEBP'
+    }
+    if (!magicOk) {
+      sendImportError(userId, deck.id, idx, 'File contents do not match a JPEG/PNG/WebP image.')
+      return
+    }
+
+    const ext = MIME_EXT[mimeType]
+    const nn = idx.toString().padStart(2, '0')
+    const filePath = `decks/${deck.id}/${nn}.${ext}`
+    const filename = `${deck.id.slice(0, 8)}-${nn}.${ext}`
+
+    await spindle.userStorage.writeBinary(filePath, bytes, userId)
+    const results = await spindle.images.uploadMany([{ data: bytes, filename, mime_type: mimeType }], { userId })
+    const uploaded = results?.[0]
+    if (!uploaded?.id) {
+      try { await spindle.userStorage.delete(filePath, userId) } catch { /* best effort cleanup */ }
+      sendImportError(userId, deck.id, idx, uploaded?.error || 'Image upload failed.')
+      return
+    }
+
+    const url = `/api/v1/images/${uploaded.id}?size=lg`
+    deck.cards[String(idx)] = { url, imageId: uploaded.id, mimeType, file: filePath }
+    deck.nextIndex = idx + 1
+    const isComplete = deck.nextIndex === TOTAL_CARDS
+
+    try {
+      await saveDecksState(userId, state)
+    } catch (err: any) {
+      spindle.log.error(`Tarot Reader: Failed to save deck state - ${err?.message || err}`)
+      try { await spindle.images.delete(uploaded.id, userId) } catch { /* best effort */ }
+      sendImportError(userId, deck.id, idx, 'Failed to save deck. Please try again.')
+      return
+    }
+
+    spindle.sendToFrontend({ type: 'import_progress', deckId: deck.id, cardIndex: idx, nextIndex: deck.nextIndex, complete: isComplete }, userId)
+    await sendDecksData(userId)
+    if (isComplete) {
+      spindle.toast.success(`Deck "${deck.name}" complete! Activate it in Settings.`)
+    }
+  }
+
+  if (payload.type === 'rename_deck') {
+    const deckId = String(payload.deckId ?? '')
+    if (!isSafeId(deckId)) {
+      spindle.toast.error('Invalid deck id.')
+      await sendDecksData(userId)
+      return
+    }
+    const name = String(payload.name ?? '').trim()
+    if (name.length < 1 || name.length > 64) {
+      spindle.toast.error('Deck name must be 1–64 characters.')
+      await sendDecksData(userId)
+      return
+    }
+    const state = await loadDecksState(userId)
+    const deck = findDeck(state, deckId)
+    if (!deck) {
+      spindle.toast.error('Deck not found.')
+      await sendDecksData(userId)
+      return
+    }
+    deck.name = name
+    await saveDecksState(userId, state)
+    await sendDecksData(userId)
+  }
+
+  if (payload.type === 'delete_deck') {
+    const deckId = String(payload.deckId ?? '')
+    if (!isSafeId(deckId)) {
+      spindle.toast.error('Invalid deck id.')
+      await sendDecksData(userId)
+      return
+    }
+    const state = await loadDecksState(userId)
+    const deck = findDeck(state, deckId)
+    if (!deck) {
+      spindle.toast.error('Deck not found.')
+      await sendDecksData(userId)
+      return
+    }
+    try {
+      await spindle.userStorage.delete(`decks/${deck.id}`, userId)
+    } catch { /* directory may not exist */ }
+    const imageIds = Object.values(deck.cards).map(c => c?.imageId).filter((id): id is string => typeof id === 'string' && id.length > 0)
+    if (imageIds.length > 0) {
+      try {
+        await spindle.images.deleteMany(imageIds, { userId })
+      } catch (e: any) {
+        spindle.log.error(`Tarot Reader: Deck cleanup: image host delete failed — ${e?.message ?? e}`)
+      }
+    }
+    const wasActive = state.activeDeckId === deck.id
+    state.decks = state.decks.filter(d => d.id !== deck.id)
+    if (wasActive) state.activeDeckId = 'default'
+    await saveDecksState(userId, state)
+    spindle.toast.success('Deck deleted.')
+    await sendDecksData(userId)
+    if (wasActive) {
+      const defaultUrls = await getDefaultImageUrls(userId)
+      spindle.sendToFrontend({ type: 'image_urls_update', imageUrls: defaultUrls }, userId)
+    }
+  }
+
+  if (payload.type === 'set_active_deck') {
+    const deckId = String(payload.deckId ?? '')
+    if (deckId !== 'default' && !isSafeId(deckId)) {
+      spindle.toast.error('Invalid deck id.')
+      await sendDecksData(userId)
+      return
+    }
+    const state = await loadDecksState(userId)
+    if (deckId === 'default') {
+      state.activeDeckId = 'default'
+      await saveDecksState(userId, state)
+      await sendDecksData(userId)
+      const defaultUrls = await getDefaultImageUrls(userId)
+      spindle.sendToFrontend({ type: 'image_urls_update', imageUrls: defaultUrls }, userId)
+      spindle.toast.success('Default (Rider–Waite) deck activated.')
+      return
+    }
+    const deck = findDeck(state, deckId)
+    if (!deck) {
+      spindle.toast.error('Deck not found.')
+      await sendDecksData(userId)
+      return
+    }
+    if (!complete(deck)) {
+      spindle.toast.error(`Deck "${deck.name}" is incomplete (${deck.nextIndex}/79). Finish importing first.`)
+      await sendDecksData(userId)
+      return
+    }
+    state.activeDeckId = deck.id
+    await saveDecksState(userId, state)
+    await sendDecksData(userId)
+    const defaultUrls = await getDefaultImageUrls(userId)
+    spindle.sendToFrontend({ type: 'image_urls_update', imageUrls: imageUrlsFor(state, deck.id, defaultUrls) }, userId)
+    spindle.toast.success(`Deck "${deck.name}" activated.`)
+  }
 }
+
+registerTarotMacros()
 
 spindle.log.info('Tarot Reader backend loaded.')
