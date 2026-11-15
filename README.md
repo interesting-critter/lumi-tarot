@@ -30,3 +30,4 @@ The Custom Decks section in the Settings tab lets you use your own deck art inst
 * Decks are stored per-user on this instance (not shipped anywhere) and served only to the importing user; the default Rider–Waite deck is unaffected and remains the fallback.
 * Switch the active deck in the Custom Decks section ("Use" on a completed deck) — only completed decks can be activated. Deleting a deck removes its images. Deck names are editable via Rename.
 * The default deck's images are now cached per user (previously shared on the instance); existing installs re-upload the default deck once per user on first load (~21MB).
+* The extension declares the `base64_decode` backend capability because it decodes user-picked image files in its backend — a static-scan opt-out for a legitimate image-bytes use, not a network or subprocess capability.
