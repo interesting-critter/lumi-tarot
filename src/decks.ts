@@ -11,6 +11,11 @@ export interface DeckCardEntry {
   file: string
 }
 
+export interface DeckMeaning {
+  upright?: string
+  inverse?: string
+}
+
 export interface CustomDeck {
   id: string
   name: string
@@ -21,6 +26,7 @@ export interface CustomDeck {
   cardNames: string[] // index → display name; length === totalCards
   backIndex: number | null // index of the card back, else null
   guidebook: string // '' default, capped at MAX_GUIDEBOOK_CHARS
+  meanings: Record<string, DeckMeaning> // card index → per-orientation meanings; no length cap
 }
 
 export interface DecksState {
@@ -115,6 +121,24 @@ function sanitizeDeck(value: unknown): CustomDeck | null {
 
   const guidebook = typeof value.guidebook === 'string' ? value.guidebook.slice(0, MAX_GUIDEBOOK_CHARS) : ''
 
+  // Per-card meanings: keys are card-index strings within [0, cardNames.length);
+  // values must be objects whose upright/inverse entries are kept only when
+  // they are strings. There is deliberately no length cap. Anything unusable
+  // is dropped; a missing or invalid `meanings` field yields {} and never
+  // rejects the deck.
+  const meanings: Record<string, DeckMeaning> = {}
+  if (isRecord(value.meanings)) {
+    for (const [key, entry] of Object.entries(value.meanings)) {
+      const idx = Number(key)
+      if (!Number.isInteger(idx) || idx < 0 || idx >= totalCards) continue
+      if (!isRecord(entry)) continue
+      const clean: DeckMeaning = {}
+      if (typeof entry.upright === 'string') clean.upright = entry.upright
+      if (typeof entry.inverse === 'string') clean.inverse = entry.inverse
+      meanings[String(idx)] = clean
+    }
+  }
+
   const cards: Record<string, DeckCardEntry> = {}
   if (isRecord(value.cards)) {
     for (const [key, entry] of Object.entries(value.cards)) {
@@ -125,7 +149,7 @@ function sanitizeDeck(value: unknown): CustomDeck | null {
     }
   }
 
-  return { id, name, createdAt, nextIndex, cards, kind, cardNames, backIndex, guidebook }
+  return { id, name, createdAt, nextIndex, cards, kind, cardNames, backIndex, guidebook, meanings }
 }
 
 export async function loadDecksState(userId: string): Promise<DecksState> {

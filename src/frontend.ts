@@ -86,6 +86,8 @@ export function setup(ctx: SpindleFrontendContext) {
     .tarot-grid-edit:disabled { opacity: 0.6; cursor: wait; }
     .tarot-grid-name { font-size: 10px; color: var(--lumiverse-text); text-align: center; line-height: 1.25; word-break: break-word; }
     .tarot-grid-backbadge { position: absolute; bottom: 6px; left: 6px; font-size: 9px; font-weight: 700; letter-spacing: 0.04em; background: rgba(0,0,0,0.65); color: #fff; border-radius: 3px; padding: 2px 5px; z-index: 2; }
+    .tarot-grid-badges { position: absolute; bottom: 6px; right: 6px; display: flex; gap: 3px; z-index: 2; }
+    .tarot-grid-meaningbadge { width: 16px; height: 16px; font-size: 9px; font-weight: 700; font-family: monospace; text-align: center; line-height: 16px; background: rgba(0,0,0,0.65); color: #fff; border-radius: 3px; }
     .tarot-grid-empty { color: var(--lumiverse-text-muted); font-size: 13px; text-align: center; padding: 24px 8px; }
     .tarot-grid-count { font-size: 11px; color: var(--lumiverse-text-muted); text-align: right; margin-top: 4px; }
     .tarot-create-choice { display: flex; gap: 8px; margin-top: 8px; }
@@ -156,6 +158,7 @@ export function setup(ctx: SpindleFrontendContext) {
 
         <div class="tarot-section" style="margin-top: 16px;">
           <div class="tarot-label">Custom Decks</div>
+          <label class="tarot-checkbox"><input type="checkbox" id="tarot-meaning-toasts-toggle" /> Notify when a drawn card is missing an orientation meaning</label>
           <div id="tarot-deck-list" class="tarot-deck-list"></div>
           <div id="tarot-create-deck-row" class="tarot-deck-create">
             <div id="tarot-new-deck-name-slot"></div>
@@ -245,6 +248,7 @@ export function setup(ctx: SpindleFrontendContext) {
   const saveBtn = tab.root.querySelector('#tarot-save-btn') as HTMLButtonElement
 
   const deckList = tab.root.querySelector('#tarot-deck-list') as HTMLElement
+  const meaningToastsToggle = tab.root.querySelector('#tarot-meaning-toasts-toggle') as HTMLInputElement | null
   const createDeckRow = tab.root.querySelector('#tarot-create-deck-row') as HTMLElement
   const createDeckBtn = tab.root.querySelector('#tarot-create-deck-btn') as HTMLButtonElement
   const newDeckNameSlot = tab.root.querySelector('#tarot-new-deck-name-slot') as HTMLElement
@@ -341,6 +345,7 @@ export function setup(ctx: SpindleFrontendContext) {
     if (payload.type === 'init_data') {
       imageUrls = payload.imageUrls || imageUrls
       currentSettings = payload.settings
+      if (meaningToastsToggle) meaningToastsToggle.checked = payload.settings?.meaningToasts !== false
       decks = payload.decks ?? []
       activeDeckId = payload.activeDeckId ?? 'default'
       activeDeck = payload.activeDeck ?? null
@@ -651,6 +656,19 @@ export function setup(ctx: SpindleFrontendContext) {
       }
     }
 
+    if (payload.type === 'deck_card_meaning_saved') {
+      if (gridData && String(gridData.deckId) === String(payload.deckId) && Array.isArray(gridData.cards)) {
+        const idx = Number(payload.cardIndex)
+        const card = gridData.cards[idx]
+        if (card) {
+          const meaning = typeof payload.meaning === 'string' && payload.meaning.trim() ? payload.meaning.trim() : null
+          if (payload.orientation === 'inverse') card.inverse = meaning
+          else card.upright = meaning
+        }
+      }
+      renderGrid()
+    }
+
     if (payload.type === 'deck_guidebook_saved') {
       if (String(payload.deckId) === String(guidebookDirtyDeckId)) guidebookDirtyDeckId = null
       guidebookSaveBtn.textContent = 'Saved ✓'
@@ -916,6 +934,28 @@ export function setup(ctx: SpindleFrontendContext) {
       wrap.appendChild(badge)
     }
 
+    const hasUpright = typeof card?.upright === 'string' ? card.upright.trim().length > 0 : !!card?.upright
+    const hasInverse = typeof card?.inverse === 'string' ? card.inverse.trim().length > 0 : !!card?.inverse
+    if (hasUpright || hasInverse) {
+      const badges = document.createElement('div')
+      badges.className = 'tarot-grid-badges'
+      if (hasUpright) {
+        const b = document.createElement('div')
+        b.className = 'tarot-grid-meaningbadge'
+        b.textContent = 'u'
+        b.title = 'Upright meaning set'
+        badges.appendChild(b)
+      }
+      if (hasInverse) {
+        const b = document.createElement('div')
+        b.className = 'tarot-grid-meaningbadge'
+        b.textContent = 'i'
+        b.title = 'Inverse meaning set'
+        badges.appendChild(b)
+      }
+      wrap.appendChild(badges)
+    }
+
     const editBtn = document.createElement('button')
     editBtn.className = 'tarot-grid-edit'
     editBtn.title = 'Edit card'
@@ -938,9 +978,14 @@ export function setup(ctx: SpindleFrontendContext) {
 
   async function onEditCard(e: MouseEvent, card: { index: number, name: string, isBack: boolean, url: string | null }) {
     e.stopPropagation()
+    const meaningItems: Array<{ key: string, label: string, type?: 'item' | 'divider' }> = [
+      { key: 'divider', label: '', type: 'divider' },
+      { key: 'change_upright_meaning', label: 'Change Upright Meaning' },
+      { key: 'change_inverse_meaning', label: 'Change Inverse Meaning' }
+    ]
     const items = card.isBack
-      ? [{ key: 'change_image', label: 'Change Image' }]
-      : [{ key: 'change_image', label: 'Change Image' }, { key: 'change_name', label: 'Change Name' }]
+      ? [{ key: 'change_image', label: 'Change Image' }, ...meaningItems]
+      : [{ key: 'change_image', label: 'Change Image' }, { key: 'change_name', label: 'Change Name' }, ...meaningItems]
     let selectedKey: string | null = null
     try {
       const result = await ctx.ui.showContextMenu({ position: { x: e.clientX, y: e.clientY }, items })
@@ -981,6 +1026,9 @@ export function setup(ctx: SpindleFrontendContext) {
     } else if (selectedKey === 'change_name') {
       if (!gridDeckId) return
       openRenameModal(card)
+    } else if (selectedKey === 'change_upright_meaning' || selectedKey === 'change_inverse_meaning') {
+      if (!gridDeckId) return
+      openMeaningModal(card, selectedKey === 'change_upright_meaning' ? 'upright' : 'inverse')
     }
   }
 
@@ -1041,6 +1089,64 @@ export function setup(ctx: SpindleFrontendContext) {
       if (ev.key === 'Enter') { ev.preventDefault(); submit() }
     })
     window.setTimeout(() => { input.focus(); input.select() }, 50)
+  }
+
+  function openMeaningModal(card: { index: number, name: string }, orientation: 'upright' | 'inverse') {
+    const isUpright = orientation === 'upright'
+    const modal = ctx.ui.showModal({ title: isUpright ? 'Upright Meaning' : 'Inverse Meaning' })
+    const body = modal.root
+
+    const hint = document.createElement('p')
+    hint.style.color = 'var(--lumiverse-text-muted)'
+    hint.style.fontSize = '12px'
+    hint.style.margin = '0 0 8px 0'
+    hint.textContent = `${card.name} — what this card means when drawn ${isUpright ? 'upright' : 'inverted'}. Empty clears the definition.`
+    body.appendChild(hint)
+
+    const current = (() => {
+      if (gridData && String(gridData.deckId) === String(gridDeckId) && Array.isArray(gridData.cards)) {
+        const found = gridData.cards.find((c: any) => Number(c?.index) === card.index)
+        const v = found ? found[orientation] : null
+        return typeof v === 'string' ? v : ''
+      }
+      return ''
+    })()
+
+    const textarea = document.createElement('textarea')
+    textarea.className = 'tarot-input'
+    textarea.rows = 4
+    textarea.value = current
+    body.appendChild(textarea)
+
+    const errorLine = document.createElement('div')
+    errorLine.className = 'tarot-custom-error'
+    errorLine.style.marginTop = '6px'
+    errorLine.style.display = 'none'
+    body.appendChild(errorLine)
+
+    const btnRow = document.createElement('div')
+    btnRow.style.display = 'flex'
+    btnRow.style.gap = '8px'
+    btnRow.style.marginTop = '10px'
+    const saveMeaningBtn = document.createElement('button')
+    saveMeaningBtn.className = 'tarot-btn'
+    saveMeaningBtn.style.width = 'auto'
+    saveMeaningBtn.textContent = 'Save Meaning'
+    const cancelMeaningBtn = document.createElement('button')
+    cancelMeaningBtn.className = 'tarot-deck-btn'
+    cancelMeaningBtn.textContent = 'Cancel'
+    btnRow.appendChild(saveMeaningBtn)
+    btnRow.appendChild(cancelMeaningBtn)
+    body.appendChild(btnRow)
+
+    saveMeaningBtn.addEventListener('click', () => {
+      if (gridDeckId) {
+        ctx.sendToBackend({ type: 'set_deck_card_meaning', deckId: gridDeckId, cardIndex: card.index, orientation, meaning: textarea.value.trim() })
+      }
+      modal.dismiss()
+    })
+    cancelMeaningBtn.addEventListener('click', () => modal.dismiss())
+    window.setTimeout(() => { textarea.focus() }, 50)
   }
 
   // --- Create flow (choice between standard / custom decks) ---
@@ -1446,6 +1552,13 @@ export function setup(ctx: SpindleFrontendContext) {
     if (!gridDeckId) return
     ctx.sendToBackend({ type: 'set_deck_guidebook', deckId: gridDeckId, guidebook: guidebookEl.value })
   })
+
+  // --- Missing-meaning Toasts Toggle (not routed through Save Settings) ---
+  if (meaningToastsToggle) {
+    meaningToastsToggle.addEventListener('change', () => {
+      ctx.sendToBackend({ type: 'set_meaning_toasts', enabled: meaningToastsToggle.checked })
+    })
+  }
 
   // --- Save Settings ---
   saveBtn.addEventListener('click', () => {
