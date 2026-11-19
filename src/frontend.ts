@@ -88,7 +88,6 @@ export function setup(ctx: SpindleFrontendContext) {
     .tarot-grid-backbadge { position: absolute; bottom: 6px; left: 6px; font-size: 9px; font-weight: 700; letter-spacing: 0.04em; background: rgba(0,0,0,0.65); color: #fff; border-radius: 3px; padding: 2px 5px; z-index: 2; }
     .tarot-grid-badges { position: absolute; bottom: 6px; right: 6px; display: flex; gap: 3px; z-index: 2; }
     .tarot-grid-meaningbadge { width: 16px; height: 16px; font-size: 9px; font-weight: 700; font-family: monospace; text-align: center; line-height: 16px; background: rgba(0,0,0,0.65); color: #fff; border-radius: 3px; }
-    .tarot-grid-empty { color: var(--lumiverse-text-muted); font-size: 13px; text-align: center; padding: 24px 8px; }
     .tarot-grid-count { font-size: 11px; color: var(--lumiverse-text-muted); text-align: right; margin-top: 4px; }
     .tarot-create-choice { display: flex; gap: 8px; margin-top: 8px; }
     .tarot-create-choice .tarot-btn { flex: 1; }
@@ -197,12 +196,11 @@ export function setup(ctx: SpindleFrontendContext) {
         <div class="tarot-section">
           <div class="tarot-label">View Custom Deck</div>
           <div id="tarot-grid-deck-select"></div>
-          <div id="tarot-grid-empty" class="tarot-grid-empty" style="display:none;">No custom decks yet. Create one in the Settings tab.</div>
         </div>
 
         <div class="tarot-section" style="margin-top: 16px;">
           <div class="tarot-label">Deck Guidebook</div>
-          <div class="tarot-custom-hint">Reference material shown to the LLM when reading with this deck — the full guidebook or just card meanings.</div>
+          <div class="tarot-custom-hint" id="tarot-guidebook-hint">Reference material shown to the LLM when reading with this deck — the full guidebook or just card meanings.</div>
           <textarea id="tarot-grid-guidebook" class="tarot-input" rows="6" maxlength="32000" disabled></textarea>
           <div id="tarot-guidebook-count" class="tarot-grid-count">0 / 32,000</div>
           <button class="tarot-btn" id="tarot-guidebook-save-btn" style="margin-top:8px;" disabled>Save Guidebook</button>
@@ -226,7 +224,7 @@ export function setup(ctx: SpindleFrontendContext) {
   const historyList = tab.root.querySelector('#tarot-history-list') as HTMLElement
 
   const gridDeckSelectEl = tab.root.querySelector('#tarot-grid-deck-select') as HTMLElement
-  const gridEmptyEl = tab.root.querySelector('#tarot-grid-empty') as HTMLElement
+  const guidebookHintEl = tab.root.querySelector('#tarot-guidebook-hint') as HTMLElement
   const guidebookEl = tab.root.querySelector('#tarot-grid-guidebook') as HTMLTextAreaElement
   const guidebookCountEl = tab.root.querySelector('#tarot-guidebook-count') as HTMLElement
   const guidebookSaveBtn = tab.root.querySelector('#tarot-guidebook-save-btn') as HTMLButtonElement
@@ -614,14 +612,22 @@ export function setup(ctx: SpindleFrontendContext) {
 
     if (payload.type === 'deck_cards_grid_data') {
       if (gridDeckId && String(payload.deckId) !== String(gridDeckId)) return
+      const readOnly = payload.readOnly === true
       const sameDeck = gridData && String(gridData.deckId) === String(payload.deckId)
       gridData = payload
-      const dirty = guidebookDirtyDeckId !== null && String(guidebookDirtyDeckId) === String(payload.deckId)
-      if (!sameDeck || !dirty) {
-        const gb = typeof payload.guidebook === 'string' ? payload.guidebook : ''
-        guidebookEl.value = gb
+      if (readOnly) {
+        guidebookEl.value = ''
+        guidebookDirtyDeckId = null
         updateGuidebookCount()
+      } else {
+        const dirty = guidebookDirtyDeckId !== null && String(guidebookDirtyDeckId) === String(payload.deckId)
+        if (!sameDeck || !dirty) {
+          const gb = typeof payload.guidebook === 'string' ? payload.guidebook : ''
+          guidebookEl.value = gb
+          updateGuidebookCount()
+        }
       }
+      applyGuidebookState(readOnly)
       renderGrid()
     }
 
@@ -831,6 +837,19 @@ export function setup(ctx: SpindleFrontendContext) {
   // --- Decks tab (grid + guidebook) ---
   const PENCIL_SVG = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>'
 
+  const GUIDEBOOK_HINT_NORMAL = 'Reference material shown to the LLM when reading with this deck — the full guidebook or just card meanings.'
+  const GUIDEBOOK_HINT_READONLY = 'The Default (Rider–Waite) deck is read-only — no guidebook.'
+
+  function isGridReadOnly(): boolean {
+    return !!(gridData && gridDeckId && String(gridData.deckId) === String(gridDeckId) && gridData.readOnly === true)
+  }
+
+  function applyGuidebookState(readOnly: boolean) {
+    guidebookHintEl.textContent = readOnly ? GUIDEBOOK_HINT_READONLY : GUIDEBOOK_HINT_NORMAL
+    guidebookEl.disabled = readOnly
+    guidebookSaveBtn.disabled = readOnly
+  }
+
   function requestGrid(deckId: string) {
     clearGridError()
     ctx.sendToBackend({ type: 'deck_cards_grid', deckId })
@@ -852,51 +871,51 @@ export function setup(ctx: SpindleFrontendContext) {
 
   function refreshGridDeckOptions() {
     const custom = (decks ?? []).filter(d => d && String(d.id) !== 'default')
-    const options = custom.map(d => ({ value: String(d.id), label: String(d.name ?? 'Untitled Deck') }))
-    const stillThere = gridDeckId !== null && custom.some(d => String(d.id) === String(gridDeckId))
-    if (!stillThere) gridDeckId = custom.length ? String(custom[0].id) : null
-    if (gridDeckSelectHandle) gridDeckSelectHandle.update({ options, value: gridDeckId ?? '' })
+    const options = [
+      { value: 'default', label: 'Default (Rider–Waite)' },
+      ...custom.map(d => ({ value: String(d.id), label: String(d.name ?? 'Untitled Deck') }))
+    ]
+    if (gridDeckId === null || (gridDeckId !== 'default' && !custom.some(d => String(d.id) === String(gridDeckId)))) {
+      gridDeckId = 'default'
+    }
+    if (gridDeckSelectHandle) gridDeckSelectHandle.update({ options, value: gridDeckId })
     if (!gridDeckId) {
+      // Selection can no longer disappear (default is always valid); kept for simplicity.
       gridData = null
       deckGridEl.innerHTML = ''
       gridDeckSelectEl.style.display = 'none'
-      gridEmptyEl.style.display = 'block'
       guidebookEl.value = ''
       guidebookDirtyDeckId = null
       updateGuidebookCount()
+      guidebookHintEl.textContent = GUIDEBOOK_HINT_NORMAL
       guidebookEl.disabled = true
       guidebookSaveBtn.disabled = true
       clearGridError()
       return
     }
     gridDeckSelectEl.style.display = ''
-    gridEmptyEl.style.display = 'none'
-    guidebookEl.disabled = false
-    guidebookSaveBtn.disabled = false
-    if (decksView.style.display !== 'none') requestGrid(gridDeckId)
-    else renderGrid()
+    applyGuidebookState(isGridReadOnly())
+    requestGrid(gridDeckId)
   }
 
   function renderGrid() {
     deckGridEl.innerHTML = ''
     if (!gridDeckId) {
       gridDeckSelectEl.style.display = 'none'
-      gridEmptyEl.style.display = 'block'
       guidebookEl.disabled = true
       guidebookSaveBtn.disabled = true
       return
     }
+    const readOnly = isGridReadOnly()
     gridDeckSelectEl.style.display = ''
-    gridEmptyEl.style.display = 'none'
-    guidebookEl.disabled = false
-    guidebookSaveBtn.disabled = false
+    applyGuidebookState(readOnly)
     if (!gridData || String(gridData.deckId) !== String(gridDeckId) || !Array.isArray(gridData.cards)) return
     for (const card of gridData.cards) {
-      deckGridEl.appendChild(buildGridTile(card))
+      deckGridEl.appendChild(buildGridTile(card, readOnly))
     }
   }
 
-  function buildGridTile(card: any): HTMLElement {
+  function buildGridTile(card: any, readOnly: boolean): HTMLElement {
     const index = Number(card?.index)
     const name = typeof card?.name === 'string' ? card.name : ''
     const isBack = !!card?.isBack
@@ -956,14 +975,16 @@ export function setup(ctx: SpindleFrontendContext) {
       wrap.appendChild(badges)
     }
 
-    const editBtn = document.createElement('button')
-    editBtn.className = 'tarot-grid-edit'
-    editBtn.title = 'Edit card'
-    editBtn.setAttribute('aria-label', 'Edit card')
-    editBtn.innerHTML = PENCIL_SVG
-    if (pendingReplace && String(pendingReplace.deckId) === String(gridData?.deckId) && pendingReplace.cardIndex === index) editBtn.disabled = true
-    editBtn.addEventListener('click', (e: MouseEvent) => { void onEditCard(e, { index, name, isBack, url }) })
-    wrap.appendChild(editBtn)
+    if (!readOnly) {
+      const editBtn = document.createElement('button')
+      editBtn.className = 'tarot-grid-edit'
+      editBtn.title = 'Edit card'
+      editBtn.setAttribute('aria-label', 'Edit card')
+      editBtn.innerHTML = PENCIL_SVG
+      if (pendingReplace && String(pendingReplace.deckId) === String(gridData?.deckId) && pendingReplace.cardIndex === index) editBtn.disabled = true
+      editBtn.addEventListener('click', (e: MouseEvent) => { void onEditCard(e, { index, name, isBack, url }) })
+      wrap.appendChild(editBtn)
+    }
 
     tile.appendChild(wrap)
 
@@ -1549,7 +1570,7 @@ export function setup(ctx: SpindleFrontendContext) {
   // --- Decks tab: guidebook wiring ---
   guidebookEl.addEventListener('input', () => { guidebookDirtyDeckId = gridDeckId; updateGuidebookCount() })
   guidebookSaveBtn.addEventListener('click', () => {
-    if (!gridDeckId) return
+    if (guidebookSaveBtn.disabled || !gridDeckId) return
     ctx.sendToBackend({ type: 'set_deck_guidebook', deckId: gridDeckId, guidebook: guidebookEl.value })
   })
 

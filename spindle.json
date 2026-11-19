@@ -1,15 +1,28 @@
 {
-  "version": "1.2.1",
+  "version": "1.2.2",
   "name": "LumiTarot",
   "identifier": "lumi_tarot",
   "author": "critter",
   "github": "https://github.com/interesting-critter/lumi-tarot",
   "homepage": "https://github.com/interesting-critter/lumi-tarot",
   "description": "An interactive, LLM-driven tarot reading extension.",
-  "permissions": ["generation", "characters", "chats", "chat_mutation", "personas", "images"],
-  "requested_capabilities": ["base64_decode"],
+  "permissions": [
+    "generation",
+    "characters",
+    "chats",
+    "chat_mutation",
+    "personas",
+    "images"
+  ],
+  "requested_capabilities": [
+    "base64_decode"
+  ],
   "entry_backend": "dist/backend.js",
   "storage_seed_files": [
-    { "from": "assets/", "to": "assets/", "overwrite": false }
+    {
+      "from": "assets/",
+      "to": "assets/",
+      "overwrite": false
+    }
   ]
 }

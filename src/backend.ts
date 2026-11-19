@@ -180,6 +180,7 @@ function buildDeckCardsGridPayload(state: DecksState, deck: CustomDeck) {
     guidebook: deck.guidebook,
     backIndex: deck.backIndex,
     totalCards: deck.cardNames.length,
+    readOnly: false,
     cards
   }
 }
@@ -762,7 +763,26 @@ async function handleFrontendMessage(payload: any, userId: string) {
   if (payload.type === 'deck_cards_grid') {
     const deckId = String(payload.deckId ?? '')
     if (deckId === 'default') {
-      spindle.toast.error('The default deck has no custom grid.')
+      const defaultUrls = await getDefaultImageUrls(userId)
+      spindle.sendToFrontend({
+        type: 'deck_cards_grid_data',
+        deckId: 'default',
+        name: 'Default (Rider–Waite)',
+        kind: 'standard',
+        guidebook: '',
+        backIndex: 78,
+        totalCards: 79,
+        readOnly: true,
+        cards: TAROT_DECK.map((card, i) => ({
+          index: i,
+          name: card.name ?? 'Unknown',
+          url: defaultUrls[i] ?? null,
+          isBack: i === 78,
+          imported: !!defaultUrls[i],
+          upright: null,
+          inverse: null
+        }))
+      }, userId)
       return
     }
     if (!isSafeId(deckId)) {
@@ -792,7 +812,7 @@ async function handleFrontendMessage(payload: any, userId: string) {
     const state = await loadDecksState(userId)
     const deck = findDeck(state, safeDeckId)
     if (!deck) {
-      sendReplaceError('Deck not found.')
+      sendReplaceError(safeDeckId === 'default' ? 'The default deck is read-only.' : 'Deck not found.')
       return
     }
     if (!Number.isInteger(idx) || idx < 0 || idx >= deck.cardNames.length) {
@@ -902,7 +922,7 @@ async function handleFrontendMessage(payload: any, userId: string) {
     const state = await loadDecksState(userId)
     const deck = findDeck(state, deckId)
     if (!deck) {
-      spindle.toast.error('Deck not found.')
+      spindle.toast.error(deckId === 'default' ? 'The default deck is read-only.' : 'Deck not found.')
       return
     }
     if (idx >= deck.cardNames.length) {
@@ -945,7 +965,7 @@ async function handleFrontendMessage(payload: any, userId: string) {
     const state = await loadDecksState(userId)
     const deck = findDeck(state, deckId)
     if (!deck) {
-      spindle.toast.error('Deck not found.')
+      spindle.toast.error(deckId === 'default' ? 'The default deck is read-only.' : 'Deck not found.')
       return
     }
     deck.guidebook = guidebook
@@ -969,7 +989,7 @@ async function handleFrontendMessage(payload: any, userId: string) {
     const state = await loadDecksState(userId)
     const deck = findDeck(state, deckId)
     if (!deck) {
-      spindle.toast.error('Deck not found.')
+      spindle.toast.error(deckId === 'default' ? 'The default deck is read-only.' : 'Deck not found.')
       return
     }
     const idx = Number(payload.cardIndex)
