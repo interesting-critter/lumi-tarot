@@ -13,6 +13,9 @@ Just a simple, mostly vibecoded tarot reading extension.
   * Celtic Cross (Ten Card)
 * Uses your chosen LLM connection to interpret each card as it's flipped, then a "synthesis" of all cards together at the end.
 * The three most recent readings per chat are saved between sessions in the history tab. History can be cleared for current chat or all chats in the settings tab.
+* Custom decks come in two modes: a standard 78-card layout, or a fully custom card list (comma/newline-separated `index=Name` entries, optional bare `back` line reserving the final slot as the card back). Each deck can carry its own freeform guidebook that is injected into interpretation prompts for that deck only.
+* The "Custom Decks" tab manages deck art: pick a deck, browse a grid of all its cards (unimported cards show placeholders), replace a card's image or rename it in place, and edit the deck's guidebook there.
+* Spreads requiring more cards than the active deck has playable cards are refused with a toast instead of drawing a partial spread.
 
 ## Macros
 All four macros are chat-aware: they insert the LATEST FULLY COMPLETED reading for the CURRENT chat, never readings from other chats, and expand to an empty string when the current chat has no completed reading.
@@ -23,11 +26,23 @@ All four macros are chat-aware: they insert the LATEST FULLY COMPLETED reading f
 * Brace sequences in card text are neutralized so LLM output can't break macro expansion, and the macros are read-only (safe in dry-run previews).
 
 ## Custom Decks
-The Custom Decks section in the Settings tab lets you use your own deck art instead of the built-in Rider–Waite one.
-* Users can create multiple named custom decks (e.g. personal scans of deck art they own) and import them one card at a time, in the same order as the default deck: 00-fool, 01-magician, 02-high-priestess, … 77-king-of-pentacles, then 78-card-back (79 images total).
-* The UI tells you which card to import each step; order is enforced by the backend (importing out of order is rejected), and you can stop and Resume Import later — progress is saved per user per deck. Use "Choose Card Image…" to pick each card's image and "Save & Exit" to pause; "Create Deck" makes a new deck.
+The Custom Decks section in the Settings tab and the dedicated "Custom Decks" tab let you use your own deck art instead of the built-in Rider–Waite one.
+* Users can create multiple named custom decks in two modes. "Standard Deck (78)" imports the classic Rider–Waite order: 00-fool, 01-magician, 02-high-priestess, … 77-king-of-pentacles, then 78-card-back (79 images total). "Custom Deck…" builds a deck from your own list of cards.
+* Custom list format: comma- or newline-separated entries. Each entry is `index=Name` (e.g. `0=The Fool, 1=The Magician`); add a line with only the bare word `back` to reserve the final slot as the card back. Indices must be exactly 0..N-1 with no duplicates or gaps, names are limited to 80 characters, and the whole deck may contain at most 400 cards (including the card back). The UI validates the list live, reports the exact problem, and enables "Create Custom Deck" only once the list parses cleanly and the deck name is valid.
+* Each deck can carry a freeform guidebook (up to 32,000 characters), edited in the "Custom Decks" tab and injected into interpretation prompts only when reading with that deck — paste the full guidebook or just the card meanings. Saving is explicit via "Save Guidebook" (switching decks does not auto-save); an over-limit guidebook is rejected with a toast. Custom cards are prompted to the LLM by name only — no built-in upright/inverted meanings are sent for cards outside the standard set, so a per-deck guidebook (injected for that deck only) is the way to give the reader real meaning text.
+* The "Custom Decks" tab has a deck selector, the guidebook editor, and a grid of every card in the selected deck. Cards that have been imported show their artwork; others show a numbered placeholder ("Not imported"). Hover a card and click the pencil to "Change Image" (imported cards only, JPEG/PNG/WebP up to 2.5MB) or "Change Name" — the card back supports "Change Image" only, and the card back cannot be renamed. Rename and image replace errors are shown inline in the tab.
+* The UI tells you which card to import each step; order is enforced by the backend (importing out of order is rejected), and you can stop and Resume Import later — progress is saved per user per deck. Use "Choose Card Image…" to pick each card's image and "Save & Exit" to pause; "Create Deck" asks whether you want a standard or a custom deck.
+* Spreads that require more cards than the active deck has playable cards are refused with a toast (custom back slots don't count as playable).
 * Requirements per card: JPEG, PNG or WebP, max 2.5MB per image (use ~1000px JPEGs for best results).
 * Decks are stored per-user on this instance (not shipped anywhere) and served only to the importing user; the default Rider–Waite deck is unaffected and remains the fallback.
 * Switch the active deck in the Custom Decks section ("Use" on a completed deck) — only completed decks can be activated. Deleting a deck removes its images. Deck names are editable via Rename.
 * The default deck's images are now cached per user (previously shared on the instance); existing installs re-upload the default deck once per user on first load (~21MB).
 * The extension declares the `base64_decode` backend capability because it decodes user-picked image files in its backend — a static-scan opt-out for a legitimate image-bytes use, not a network or subprocess capability.
+
+## What's new in 1.2.0
+* New "Custom Decks" tab: deck selector, card grid with placeholders for unimported cards, hover-pencil actions (Change Image / Change Name), and the per-deck guidebook editor with a live character counter.
+* Custom deck creation rework: "Create Deck" now asks for Standard (78) vs Custom Deck…, with a live-validated custom list format.
+* Custom card backs: active decks with their own card back art show it when cards are face-down.
+* Small custom decks can refuse large spreads (with a toast) instead of dealing a partial spread.
+* Per-deck guidebooks are injected into interpretation prompts for that deck only.
+* Replacing a card image and renaming a card in place, from the grid.

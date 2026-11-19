@@ -2,7 +2,7 @@
 declare const spindle: import('lumiverse-spindle-types').SpindleAPI
 
 import { TAROT_DECK } from './tarot-data'
-import { DECK_SLUGS, TOTAL_CARDS } from './deck-data'
+import { DECK_SLUGS, MAX_CARD_NAME_CHARS, MAX_CUSTOM_CARDS, MAX_GUIDEBOOK_CHARS, slugify } from './deck-data'
 
 export interface DeckCardEntry {
   url: string
@@ -17,6 +17,10 @@ export interface CustomDeck {
   createdAt: number
   nextIndex: number
   cards: Record<string, DeckCardEntry>
+  kind: 'standard' | 'custom'
+  cardNames: string[] // index → display name; length === totalCards
+  backIndex: number | null // index of the card back, else null
+  guidebook: string // '' default, capped at MAX_GUIDEBOOK_CHARS
 }
 
 export interface DecksState {
@@ -33,6 +37,8 @@ export interface DeckSummary {
   isActive: boolean
   nextSlug: string | null
   nextCardName: string | null
+  totalCards: number
+  kind: 'standard' | 'custom'
 }
 
 const DEFAULT_STATE: DecksState = { activeDeckId: 'default', decks: [] }
@@ -59,6 +65,26 @@ function sanitizeCardEntry(value: unknown, deckId: string): DeckCardEntry | null
   return { url, imageId, mimeType, file }
 }
 
+function legacyStandardCardNames(): string[] {
+  return TAROT_DECK.map(card => card.name)
+}
+
+// Validates the cardNames array. Returns trimmed names, or null when the
+// value is unusable (not an array, wrong length, or a bad entry) — callers
+// then fall back to the legacy 79-card standard layout.
+function sanitizeCardNames(value: unknown): string[] | null {
+  if (!Array.isArray(value)) return null
+  if (value.length < 1 || value.length > MAX_CUSTOM_CARDS) return null
+  const names: string[] = []
+  for (const item of value) {
+    if (typeof item !== 'string') return null
+    const trimmed = item.trim()
+    if (trimmed.length < 1 || trimmed.length > MAX_CARD_NAME_CHARS) return null
+    names.push(trimmed)
+  }
+  return names
+}
+
 function sanitizeDeck(value: unknown): CustomDeck | null {
   if (!isRecord(value)) return null
   const id = typeof value.id === 'string' ? value.id.trim() : ''
@@ -68,21 +94,38 @@ function sanitizeDeck(value: unknown): CustomDeck | null {
   const createdAtRaw = Number(value.createdAt)
   const createdAt = Number.isFinite(createdAtRaw) && createdAtRaw > 0 ? createdAtRaw : Date.now()
 
+  // Legacy decks (missing cardNames) and decks whose cardNames are unusable
+  // fall back to the 79-card Rider–Waite layout with the back at index 78.
+  const sanitizedNames = sanitizeCardNames(value.cardNames)
+  const cardNames = sanitizedNames ?? legacyStandardCardNames()
+  const totalCards = cardNames.length
+  const fellBackToLegacy = sanitizedNames === null
+
+  const kind: 'standard' | 'custom' = fellBackToLegacy ? 'standard' : (value.kind === 'custom' ? 'custom' : 'standard')
+
+  const rawBack = value.backIndex
+  let backIndex: number | null = typeof rawBack === 'number' && Number.isInteger(rawBack) && rawBack >= 0 && rawBack < totalCards ? rawBack : null
+  // Legacy fallback decks get their back at the final index when no usable
+  // backIndex was persisted.
+  if (fellBackToLegacy && backIndex === null) backIndex = totalCards - 1
+
   const nextIndexRaw = Number(value.nextIndex)
   let nextIndex = Number.isFinite(nextIndexRaw) ? Math.trunc(nextIndexRaw) : 0
-  nextIndex = Math.min(Math.max(nextIndex, 0), TOTAL_CARDS)
+  nextIndex = Math.min(Math.max(nextIndex, 0), totalCards)
+
+  const guidebook = typeof value.guidebook === 'string' ? value.guidebook.slice(0, MAX_GUIDEBOOK_CHARS) : ''
 
   const cards: Record<string, DeckCardEntry> = {}
   if (isRecord(value.cards)) {
     for (const [key, entry] of Object.entries(value.cards)) {
       const idx = Number(key)
-      if (!Number.isInteger(idx) || idx < 0 || idx >= TOTAL_CARDS) continue
+      if (!Number.isInteger(idx) || idx < 0 || idx >= totalCards) continue
       const clean = sanitizeCardEntry(entry, id)
       if (clean) cards[String(idx)] = clean
     }
   }
 
-  return { id, name, createdAt, nextIndex, cards }
+  return { id, name, createdAt, nextIndex, cards, kind, cardNames, backIndex, guidebook }
 }
 
 export async function loadDecksState(userId: string): Promise<DecksState> {
@@ -126,16 +169,25 @@ export async function saveDecksState(userId: string, state: DecksState): Promise
 }
 
 export function complete(deck: CustomDeck): boolean {
-  return deck.nextIndex >= TOTAL_CARDS
+  return deck.nextIndex >= deck.cardNames.length
 }
 
 export function importedCount(deck: CustomDeck): number {
-  return Math.min(Math.max(deck.nextIndex, 0), TOTAL_CARDS)
+  return Math.min(Math.max(deck.nextIndex, 0), deck.cardNames.length)
 }
 
 export function deckSummary(state: DecksState, deck: CustomDeck): DeckSummary {
   const idx = importedCount(deck)
   const isComplete = complete(deck)
+  const nextCardName = isComplete ? null : (deck.cardNames[idx] ?? null)
+  const derivedSlug = nextCardName === null
+    ? null
+    : `${idx.toString().padStart(2, '0')}-${slugify(nextCardName) || 'card'}`
+  // Standard decks keep the canonical import slugs (00-fool, 01-magician, …);
+  // custom decks derive theirs from the card name.
+  const nextSlug = nextCardName === null
+    ? null
+    : (deck.kind === 'standard' ? (DECK_SLUGS[idx] ?? derivedSlug) : derivedSlug)
   return {
     id: deck.id,
     name: deck.name,
@@ -143,8 +195,10 @@ export function deckSummary(state: DecksState, deck: CustomDeck): DeckSummary {
     importedCount: idx,
     complete: isComplete,
     isActive: state.activeDeckId === deck.id,
-    nextSlug: isComplete ? null : (DECK_SLUGS[idx] ?? null),
-    nextCardName: isComplete ? null : (TAROT_DECK[idx]?.name ?? null)
+    nextSlug,
+    nextCardName,
+    totalCards: deck.cardNames.length,
+    kind: deck.kind
   }
 }
 
@@ -169,7 +223,7 @@ export function imageUrlsFor(
   const urls: Record<number, string> = {}
   for (const [key, entry] of Object.entries(deck.cards)) {
     const idx = Number(key)
-    if (!Number.isInteger(idx) || idx < 0 || idx >= TOTAL_CARDS) continue
+    if (!Number.isInteger(idx) || idx < 0 || idx >= deck.cardNames.length) continue
     if (entry?.url) urls[idx] = entry.url
   }
   return urls
